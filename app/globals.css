@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@layer base {
+  :root {
+    --background: #FAF7F2;
+    --surface: #FFFFFF;
+    --surface-container: #F7F4FC;
+    --surface-highest: #EDE7F6;
+    --primary: #6C4AB6;
+    --primary-container: #E8DCFF;
+    --on-primary-container: #21005D;
+    --foreground: #241E30;
+    --muted: #6E6478;
+    --border: #CAC4D0;
+    --border-subtle: #E7E0EC;
+
+    /* Semantic Status Tokens */
+    --status-occupied: #3B6FD4;
+    --status-vacant: #2E7D32;
+    --status-reserved: #007A78;
+    --status-pending: #B3261E;
+    --status-moving-out: #F9A825;
+  }
+
+  .dark {
+    --background: #0D0F0D;
+    --surface: #161A16;
+    --surface-container: #161C16;
+    --surface-highest: #1E2A1E;
+    --primary: #3DDC84;
+    --primary-container: #005229;
+    --on-primary-container: #98F5C4;
+    --foreground: #EAF5EC;
+    --muted: #9FB3A4;
+    --border: #4A5E4D;
+    --border-subtle: #2E3D2E;
+
+    /* Semantic Status Tokens (Brightness Adapted) */
+    --status-occupied: #82B1FF;
+    --status-vacant: #81C784;
+    --status-reserved: #2DD4BF;
+    --status-pending: #FF8A80;
+    --status-moving-out: #FFD54F;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-container: var(--surface-container);
+  --color-surface-highest: var(--surface-highest);
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-status-occupied: var(--status-occupied);
+  --color-status-vacant: var(--status-vacant);
+  --color-status-reserved: var(--status-reserved);
+  --color-status-pending: var(--status-pending);
+  --color-status-moving-out: var(--status-moving-out);
+
+  --font-sans: var(--font-jakarta), system-ui, -apple-system, sans-serif;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 360dp narrow viewport safety: prevent accidental horizontal overflows */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Custom compact scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
