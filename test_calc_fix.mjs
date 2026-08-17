@@ -1,21 +1,6 @@
-import { Payment } from '@/types/domain';
-import { RentCalculationResult } from '@/types/calculations';
-import { getBillingCycleStartDate, parseLocalDate } from '../utils/dates';
+import { getBillingCycleStartDate, parseLocalDate } from './lib/utils/dates.js';
 
-interface CalculatePendingRentParams {
-  rate: number;
-  checkInDate: Date | string;
-  checkOutDate?: Date | string | null;
-  dueDay: number;
-  payments: Payment[];
-  asOfDate: Date | string;
-  utilityBills?: Array<{ amount_due?: number; amountDue?: number }>;
-}
-
-/**
- * Calculates the pending rent and utility balance for a tenancy up to asOfDate.
- */
-export function calculatePendingRent({
+function calculatePendingRentFixed({
   rate,
   checkInDate,
   checkOutDate,
@@ -23,11 +8,10 @@ export function calculatePendingRent({
   payments,
   asOfDate,
   utilityBills = [],
-}: CalculatePendingRentParams): RentCalculationResult {
+}) {
   const checkIn = parseLocalDate(checkInDate);
   const effectiveEnd = checkOutDate ? parseLocalDate(checkOutDate) : parseLocalDate(asOfDate);
 
-  // Total paid: sum of active payments with type 'rent' or 'electricity'
   const totalPaid = payments
     .filter((p) => !p.deleted_at && (p.type === 'rent' || p.type === 'electricity'))
     .reduce((sum, p) => sum + Number(p.amount), 0);
@@ -58,8 +42,8 @@ export function calculatePendingRent({
     }
     const nextCycleStart = getBillingCycleStartDate(nextYear, nextMonth, dueDay);
 
-    // The first entry cycle is always charged for an active tenancy.
-    // Subsequent cycles are only charged once their cycleStart date has arrived.
+    // First cycle is always charged for an active tenancy.
+    // Subsequent cycles are only charged if cycleStart has occurred relative to effectiveEnd.
     if (!isFirstCycle && cycleStart.getTime() > effectiveEnd.getTime()) {
       break;
     }
@@ -96,3 +80,23 @@ export function calculatePendingRent({
     pendingBalance,
   };
 }
+
+// Test Case: Check-in date is Aug 17, 2026, due day 10, rate 8000, advance paid 2000
+// Current date (asOfDate) is TODAY (any date, e.g. now)
+const res = calculatePendingRentFixed({
+  rate: 8000,
+  checkInDate: '2026-08-17',
+  dueDay: 10,
+  payments: [
+    {
+      id: 'p1',
+      amount: 2000,
+      type: 'rent',
+      date: '2026-08-17',
+      deleted_at: null,
+    }
+  ],
+  asOfDate: new Date(),
+});
+
+console.log('Result regardless of current system date:', res);
