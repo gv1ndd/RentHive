@@ -242,10 +242,15 @@ export function AssignTenantModal({
             label="Select Existing Tenant"
             value={selectedTenantId}
             onChange={(e) => setSelectedTenantId(e.target.value)}
-            options={existingTenants.map((t) => ({
-              value: t.id,
-              label: `${t.name}${t.phone ? ` (${t.phone})` : ''}`,
-            }))}
+            options={
+              existingTenants.length > 0
+                ? existingTenants.map((t) => ({
+                    value: t.id,
+                    label: `${t.name}${t.phone ? ` (${t.phone})` : ''}`,
+                  }))
+                : [{ value: '', label: 'No existing tenants found' }]
+            }
+            disabled={existingTenants.length === 0}
           />
         )}
 

@@ -10,7 +10,7 @@ import { AdvanceBooking } from '@/types/domain';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
-import { CheckCircle2, AlertCircle, Calculator } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Calculator, CreditCard, X } from 'lucide-react';
 
 interface ConvertBookingModalProps {
   isOpen: boolean;
@@ -45,6 +45,12 @@ export function ConvertBookingModal({
   const [rooms, setRooms] = useState<RoomWithVacantBeds[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Optional on-the-spot payment recording
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -53,6 +59,9 @@ export function ConvertBookingModal({
       setCheckInDate(booking.expected_move_in_date || formatDate(new Date()));
       setSelectedRoomId(booking.room_id || '');
       setSelectedBedId(booking.bed_id || '');
+      setIsRecordingPayment(false);
+      setPaymentAmount('');
+      setPaymentMethod('Cash');
       setError(null);
 
       const fetchRoomsAndBeds = async () => {
@@ -77,10 +86,36 @@ export function ConvertBookingModal({
           .is('deleted_at', null)
           .order('room_number', { ascending: true });
 
-        if (data) {
-          setRooms(data as unknown as RoomWithVacantBeds[]);
+        if (data && data.length > 0) {
+          const roomList = data as unknown as RoomWithVacantBeds[];
+          setRooms(roomList);
+
+          // Select initial room
+          const initialRoom = (booking.room_id && roomList.find((r) => r.id === booking.room_id)) || roomList[0];
+          setSelectedRoomId(initialRoom.id);
+
+          // Filter available beds for this room
+          const vacantBeds = (initialRoom.beds || []).filter((b) => {
+            if (b.deleted_at) return false;
+            const hasActive = (b.tenancies || []).some(
+              (t) => !t.check_out_date && !t.deleted_at
+            );
+            return !hasActive || b.id === booking.bed_id;
+          });
+
+          // Select initial bed
+          const initialBed = (booking.bed_id && vacantBeds.find((b) => b.id === booking.bed_id)) || vacantBeds[0];
+          if (initialBed) {
+            setSelectedBedId(initialBed.id);
+            if (!booking.total_amount && initialBed.default_rate) {
+              setRate(String(initialBed.default_rate));
+            }
+          } else {
+            setSelectedBedId('');
+          }
         }
       };
+
       fetchRoomsAndBeds();
     }
   }, [booking, isOpen, supabase]);
@@ -93,6 +128,36 @@ export function ConvertBookingModal({
     );
     return !hasActiveTenancy || b.id === booking?.bed_id;
   });
+
+  const handleRoomChange = (newRoomId: string) => {
+    setSelectedRoomId(newRoomId);
+    const room = rooms.find((r) => r.id === newRoomId);
+    const vacantBeds = (room?.beds || []).filter((b) => {
+      if (b.deleted_at) return false;
+      const hasActive = (b.tenancies || []).some(
+        (t) => !t.check_out_date && !t.deleted_at
+      );
+      return !hasActive || b.id === booking?.bed_id;
+    });
+
+    if (vacantBeds.length > 0) {
+      setSelectedBedId(vacantBeds[0].id);
+      if (!booking?.total_amount && vacantBeds[0].default_rate) {
+        setRate(String(vacantBeds[0].default_rate));
+      }
+    } else {
+      setSelectedBedId('');
+    }
+  };
+
+  const handleBedChange = (newBedId: string) => {
+    setSelectedBedId(newBedId);
+    const room = rooms.find((r) => r.id === selectedRoomId);
+    const bed = room?.beds.find((b) => b.id === newBedId);
+    if (bed && !booking?.total_amount && bed.default_rate) {
+      setRate(String(bed.default_rate));
+    }
+  };
 
   // Live Proration Preview Calculation (with advance token deduction)
   const prorationPreview = React.useMemo(() => {
@@ -168,11 +233,16 @@ export function ConvertBookingModal({
       return;
     }
 
+    if (isRecordingPayment && (!paymentAmount || parseFloat(paymentAmount) <= 0)) {
+      setError('Please enter a valid payment amount, or cancel recording payment.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // Call atomic convert_advance_booking RPC
+      // 1. Call atomic convert_advance_booking RPC
       const { data, error: rpcError } = await supabase.rpc('convert_advance_booking', {
         p_booking_id: booking.id,
         p_bed_id: selectedBedId,
@@ -190,6 +260,25 @@ export function ConvertBookingModal({
           throw new Error('This booking has already been converted.');
         }
         throw rpcError;
+      }
+
+      const res = data as { tenancy_id?: string } | null;
+      const tenancyId = res?.tenancy_id;
+
+      // 2. If landlord chose to record settlement payment on the spot:
+      if (isRecordingPayment && tenancyId && parseFloat(paymentAmount) > 0) {
+        const { error: pErr } = await supabase.from('payments').insert({
+          tenancy_id: tenancyId,
+          amount: parseFloat(paymentAmount),
+          type: 'rent' as const,
+          date: checkInDate,
+          method: paymentMethod,
+          receipt_number: `SETTLE-CHECKIN-${Date.now().toString().slice(-4)}`,
+        });
+
+        if (pErr) {
+          console.error('Error inserting check-in payment:', pErr);
+        }
       }
 
       onSuccess();
@@ -241,10 +330,7 @@ export function ConvertBookingModal({
           <Select
             label="Select Room"
             value={selectedRoomId}
-            onChange={(e) => {
-              setSelectedRoomId(e.target.value);
-              setSelectedBedId('');
-            }}
+            onChange={(e) => handleRoomChange(e.target.value)}
             options={rooms.map((r) => ({
               value: r.id,
               label: `Room ${r.room_number}`,
@@ -255,20 +341,17 @@ export function ConvertBookingModal({
           <Select
             label="Select Bed"
             value={selectedBedId}
-            onChange={(e) => {
-              setSelectedBedId(e.target.value);
-              const room = rooms.find((r) => r.id === selectedRoomId);
-              const bed = room?.beds.find((b) => b.id === e.target.value);
-              if (bed) {
-                setRate(String(bed.default_rate || rate));
-              }
-            }}
-            options={availableBeds.map((b) => ({
-              value: b.id,
-              label: `${b.bed_label} (₹${b.default_rate}/mo)`,
-            }))}
+            onChange={(e) => handleBedChange(e.target.value)}
+            options={
+              availableBeds.length > 0
+                ? availableBeds.map((b) => ({
+                    value: b.id,
+                    label: `${b.bed_label} (₹${b.default_rate}/mo)`,
+                  }))
+                : [{ value: '', label: 'No beds available in this room' }]
+            }
             required
-            disabled={!selectedRoomId}
+            disabled={!selectedRoomId || availableBeds.length === 0}
           />
         </div>
 
@@ -328,6 +411,65 @@ export function ConvertBookingModal({
                 <span className="font-medium text-foreground ml-1">{prorationPreview.daysOccupied} of {prorationPreview.totalDaysInCycle} days</span>
               </div>
             </div>
+
+            {/* Optional On-the-spot Settlement Payment */}
+            {prorationPreview.netDue > 0 && (
+              <div className="pt-2 border-t border-border-subtle/50">
+                {!isRecordingPayment ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsRecordingPayment(true);
+                      setPaymentAmount(String(prorationPreview.netDue));
+                    }}
+                    leftIcon={<CreditCard className="w-3.5 h-3.5" />}
+                    className="w-full justify-center bg-surface/50 border-primary/30 text-primary hover:bg-primary/10"
+                  >
+                    Record Payment Now ({formatCurrency(prorationPreview.netDue)})
+                  </Button>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-surface border border-border-subtle space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-primary" />
+                        <span>Record Check-In Payment</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsRecordingPayment(false)}
+                        className="p-1 text-muted hover:text-foreground rounded cursor-pointer"
+                        title="Cancel recording payment"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <Input
+                        label="Amount Received (₹)"
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        required={isRecordingPayment}
+                      />
+                      <Select
+                        label="Payment Method"
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        options={[
+                          { value: 'Cash', label: 'Cash' },
+                          { value: 'UPI', label: 'UPI / GPay / PhonePe' },
+                          { value: 'Bank Transfer', label: 'Bank Transfer / IMPS' },
+                          { value: 'Card', label: 'Debit / Credit Card' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
