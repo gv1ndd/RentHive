@@ -159,7 +159,8 @@ export default function DashboardPage() {
               deleted_at
             )
           `)
-          .in('bed_id', bedIds);
+          .in('bed_id', bedIds)
+          .is('deleted_at', null);
 
         tenancies = ((tenanciesData || []) as unknown as TenancyData[]).filter(
           (t) => !t.tenants?.deleted_at

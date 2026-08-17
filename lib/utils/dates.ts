@@ -2,6 +2,20 @@
  * Date utility helpers for billing cycle calculations and formatting.
  */
 
+export function parseLocalDate(dateInput: string | Date | null | undefined): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) {
+    return new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate());
+  }
+  const str = String(dateInput).split('T')[0];
+  const parts = str.split('-').map(Number);
+  if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  const d = new Date(dateInput);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }

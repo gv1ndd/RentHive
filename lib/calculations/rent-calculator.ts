@@ -1,6 +1,6 @@
 import { Payment } from '@/types/domain';
 import { RentCalculationResult } from '@/types/calculations';
-import { getBillingCycleStartDate } from '../utils/dates';
+import { getBillingCycleStartDate, parseLocalDate } from '../utils/dates';
 
 interface CalculatePendingRentParams {
   rate: number;
@@ -24,16 +24,8 @@ export function calculatePendingRent({
   asOfDate,
   utilityBills = [],
 }: CalculatePendingRentParams): RentCalculationResult {
-  const checkInRaw = typeof checkInDate === 'string' ? new Date(checkInDate) : checkInDate;
-  const checkIn = new Date(checkInRaw.getFullYear(), checkInRaw.getMonth(), checkInRaw.getDate());
-
-  const asOfRaw = typeof asOfDate === 'string' ? new Date(asOfDate) : asOfDate;
-  const effectiveEnd = checkOutDate
-    ? (() => {
-        const co = typeof checkOutDate === 'string' ? new Date(checkOutDate) : checkOutDate;
-        return new Date(co.getFullYear(), co.getMonth(), co.getDate());
-      })()
-    : new Date(asOfRaw.getFullYear(), asOfRaw.getMonth(), asOfRaw.getDate());
+  const checkIn = parseLocalDate(checkInDate);
+  const effectiveEnd = checkOutDate ? parseLocalDate(checkOutDate) : parseLocalDate(asOfDate);
 
   // Total paid: sum of active payments with type 'rent' or 'electricity'
   const totalPaid = payments
