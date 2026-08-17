@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { WifiOff, CheckCircle2 } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 
 export function PwaRegister() {
   const [isOffline, setIsOffline] = useState(false);

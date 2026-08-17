@@ -17,13 +17,13 @@ export function initPostHog() {
   }
 }
 
-export function captureEvent(eventName: string, properties?: Record<string, any>) {
+export function captureEvent(eventName: string, properties?: Record<string, unknown>) {
   if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
     posthog.capture(eventName, properties);
   }
 }
 
-export function identifyUser(userId: string, traits?: Record<string, any>) {
+export function identifyUser(userId: string, traits?: Record<string, unknown>) {
   if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
     posthog.identify(userId, traits);
   }

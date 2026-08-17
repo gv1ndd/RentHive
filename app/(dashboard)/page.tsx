@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useActiveBuilding } from '@/lib/context/active-building-context';
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -20,11 +21,13 @@ import {
   Plus,
   Zap,
   Building,
+  BarChart3,
 } from 'lucide-react';
 import { BuildingStats, UpcomingMoveOut } from '@/types/calculations';
 import { AdvanceBooking, Bed, Room } from '@/types/domain';
 import { AddBookingModal } from '@/components/advance-bookings/add-booking-modal';
 import { ConvertBookingModal } from '@/components/advance-bookings/convert-booking-modal';
+import { RecordGeneralPaymentModal } from '@/components/payments/record-general-payment-modal';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
 import { formatDate } from '@/lib/utils/dates';
@@ -75,6 +78,7 @@ interface MeterData {
 
 export default function DashboardPage() {
   const { activeBuilding, activeBuildingId, isLoading: isBuildingLoading } = useActiveBuilding();
+  const router = useRouter();
   const supabase = createClient();
 
   const [stats, setStats] = useState<BuildingStats>({
@@ -96,6 +100,7 @@ export default function DashboardPage() {
   const [upcomingMoveOuts, setUpcomingMoveOuts] = useState<UpcomingMoveOut[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddBookingOpen, setIsAddBookingOpen] = useState(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [convertingBooking, setConvertingBooking] = useState<AdvanceBooking | null>(null);
 
   const loadDashboardData = useCallback(async () => {
@@ -470,25 +475,41 @@ export default function DashboardPage() {
 
       {/* Quick Action Navigation Chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        <Link href="/buildings">
-          <Button variant="outline" size="sm" leftIcon={<BedDouble className="w-3.5 h-3.5" />}>
-            Manage Beds
-          </Button>
+        <Link
+          href={activeBuildingId ? `/buildings/${activeBuildingId}/rooms` : '/buildings'}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border border-border-subtle bg-surface text-foreground hover:bg-surface-highest hover:border-primary/40 active:scale-[0.99] transition-all shrink-0 shadow-xs"
+        >
+          <BedDouble className="w-4 h-4 text-primary" />
+          <span>Manage Beds</span>
         </Link>
-        <Link href="/electricity">
-          <Button variant="outline" size="sm" leftIcon={<Zap className="w-3.5 h-3.5" />}>
-            Log Electricity
-          </Button>
+        <Link
+          href="/electricity"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border border-border-subtle bg-surface text-foreground hover:bg-surface-highest hover:border-primary/40 active:scale-[0.99] transition-all shrink-0 shadow-xs"
+        >
+          <Zap className="w-4 h-4 text-status-occupied" />
+          <span>Log Electricity</span>
         </Link>
-        <Link href="/payments">
-          <Button variant="outline" size="sm" leftIcon={<CreditCard className="w-3.5 h-3.5" />}>
-            Record Payment
-          </Button>
-        </Link>
-        <Link href="/reports">
-          <Button variant="outline" size="sm">
-            Financial Reports
-          </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (activeBuildingId) {
+              setIsRecordPaymentOpen(true);
+            } else {
+              router.push('/payments');
+            }
+          }}
+          leftIcon={<CreditCard className="w-4 h-4 text-primary" />}
+          className="shrink-0 font-semibold"
+        >
+          Record Payment
+        </Button>
+        <Link
+          href="/reports"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border border-border-subtle bg-surface text-foreground hover:bg-surface-highest hover:border-primary/40 active:scale-[0.99] transition-all shrink-0 shadow-xs"
+        >
+          <BarChart3 className="w-4 h-4 text-primary" />
+          <span>Financial Reports</span>
         </Link>
       </div>
 
@@ -620,6 +641,16 @@ export default function DashboardPage() {
         <AddBookingModal
           isOpen={isAddBookingOpen}
           onClose={() => setIsAddBookingOpen(false)}
+          buildingId={activeBuildingId}
+          onSuccess={loadDashboardData}
+        />
+      )}
+
+      {/* Record Payment Modal */}
+      {activeBuildingId && (
+        <RecordGeneralPaymentModal
+          isOpen={isRecordPaymentOpen}
+          onClose={() => setIsRecordPaymentOpen(false)}
           buildingId={activeBuildingId}
           onSuccess={loadDashboardData}
         />

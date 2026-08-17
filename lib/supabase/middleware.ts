@@ -38,12 +38,13 @@ export async function updateSession(request: NextRequest) {
 
   // Route protection
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login');
+  const isOnboardRoute = request.nextUrl.pathname.startsWith('/onboard');
   const isPublicAsset =
     request.nextUrl.pathname.startsWith('/_next') ||
     request.nextUrl.pathname.startsWith('/api') ||
     request.nextUrl.pathname.includes('.');
 
-  if (!user && !isAuthRoute && !isPublicAsset) {
+  if (!user && !isAuthRoute && !isOnboardRoute && !isPublicAsset) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

@@ -142,7 +142,8 @@ export async function restoreBed(
       .update({ deleted_at: null })
       .eq('id', bed.room_id);
 
-    const buildingId = (bed as any).rooms?.building_id;
+    const bedData = bed as { room_id?: string; rooms?: { building_id?: string } | null } | null;
+    const buildingId = bedData?.rooms?.building_id;
     if (buildingId) {
       await supabase
         .from('buildings')

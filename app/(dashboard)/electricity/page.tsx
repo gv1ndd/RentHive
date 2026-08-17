@@ -107,7 +107,7 @@ export default function ElectricityPage() {
 
       // 2. Fetch all meter readings
       const meterIds = rooms.flatMap((r) => (r.meters || []).map((m: any) => m.id));
-      let readingsByMeter: Record<string, MeterReading[]> = {};
+      const readingsByMeter: Record<string, MeterReading[]> = {};
 
       if (meterIds.length > 0) {
         const { data: readingsData } = await supabase

@@ -47,7 +47,7 @@ export function DesktopSidebar() {
   };
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 h-screen bg-surface border-r border-border-subtle shrink-0 sticky top-0">
+    <aside className="hidden md:flex flex-col w-64 h-screen bg-surface border-r border-border-subtle shrink-0 sticky top-0">
       {/* Brand Header */}
       <div className="p-4 border-b border-border-subtle flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-base shadow-xs">

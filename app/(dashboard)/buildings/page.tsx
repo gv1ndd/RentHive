@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AddBuildingModal } from '@/components/buildings/add-building-modal';
 import { EditBuildingModal } from '@/components/buildings/edit-building-modal';
-import { Building2, Plus, Edit2, Trash2, ArrowRight, MapPin, CheckCircle2 } from 'lucide-react';
+import { Building2, Plus, Edit2, Trash2, ArrowRight, MapPin, CheckCircle2, Link2, Check } from 'lucide-react';
 import { Building } from '@/types/domain';
 import { softDeleteBuilding } from '@/lib/services/inventory-service';
 
@@ -26,6 +26,7 @@ export default function BuildingsPage() {
 
   const [buildings, setBuildings] = useState<BuildingWithCounts[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modals
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -213,6 +214,32 @@ export default function BuildingsPage() {
                 {/* Bottom Actions */}
                 <div className="pt-3 border-t border-border-subtle flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={async () => {
+                        const url = `${window.location.origin}/onboard/${building.id}`;
+                        await navigator.clipboard.writeText(url);
+                        setCopiedId(building.id);
+                        setTimeout(() => setCopiedId(null), 2500);
+                      }}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px] ${
+                        copiedId === building.id
+                          ? 'text-status-vacant bg-status-vacant/10 font-semibold'
+                          : 'text-muted hover:text-primary hover:bg-primary/10'
+                      }`}
+                      title="Copy Self-Serve Tenant Onboarding Link"
+                    >
+                      {copiedId === building.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Copied Link!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-3.5 h-3.5" />
+                          <span>Onboarding Link</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       onClick={() => setEditingBuilding(building)}
                       className="p-1.5 text-muted hover:text-foreground hover:bg-surface-highest rounded-lg transition-colors cursor-pointer"

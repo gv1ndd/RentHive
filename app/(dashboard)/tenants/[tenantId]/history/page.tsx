@@ -12,6 +12,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { RecordPaymentModal } from '@/components/payments/record-payment-modal';
 import { EditPaymentModal } from '@/components/payments/edit-payment-modal';
 import { AddTenantNoteModal } from '@/components/tenants/add-tenant-note-modal';
+import { WhatsAppRentScriptModal } from '@/components/tenants/whatsapp-rent-script-modal';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -69,6 +70,8 @@ export default function TenantHistoryPage({
 
   // Modals
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
+  const [electricityDue, setElectricityDue] = useState(0);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [deletingPayment, setDeletingPayment] = useState<Payment | null>(null);
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
@@ -231,12 +234,12 @@ export default function TenantHistoryPage({
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-36 rounded-2xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Skeleton className="h-48 rounded-2xl" />
-          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-48 rounded-2xl lg:col-span-2" />
         </div>
+        <Skeleton className="h-64 rounded-2xl" />
       </div>
     );
   }
@@ -256,20 +259,32 @@ export default function TenantHistoryPage({
           <h1 className="text-xl font-bold text-foreground">Tenant Hub — {tenant?.name}</h1>
           <div className="flex items-center gap-2">
             {activeTenancy && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsRecordPaymentOpen(true)}
-                leftIcon={<CreditCard className="w-4 h-4" />}
-              >
-                Record Payment
-              </Button>
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsWhatsAppOpen(true)}
+                  leftIcon={<MessageSquare className="w-4 h-4" />}
+                  className="bg-[#25D366] hover:bg-[#20bd5a] text-white border-none"
+                >
+                  WhatsApp Script
+                </Button>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsRecordPaymentOpen(true)}
+                  leftIcon={<CreditCard className="w-4 h-4" />}
+                >
+                  Record Payment
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsAddNoteOpen(true)}
-              leftIcon={<MessageSquare className="w-4 h-4" />}
+              leftIcon={<Plus className="w-4 h-4" />}
             >
               Add Note
             </Button>
@@ -586,13 +601,27 @@ export default function TenantHistoryPage({
 
       {/* Record Payment Modal */}
       {activeTenancy && (
-        <RecordPaymentModal
-          isOpen={isRecordPaymentOpen}
-          onClose={() => setIsRecordPaymentOpen(false)}
-          tenancyId={activeTenancy.id}
-          defaultAmount={pendingBalance > 0 ? pendingBalance : undefined}
-          onSuccess={loadTenantHub}
-        />
+        <>
+          <RecordPaymentModal
+            isOpen={isRecordPaymentOpen}
+            onClose={() => setIsRecordPaymentOpen(false)}
+            tenancyId={activeTenancy.id}
+            defaultAmount={pendingBalance > 0 ? pendingBalance : undefined}
+            onSuccess={loadTenantHub}
+          />
+
+          <WhatsAppRentScriptModal
+            isOpen={isWhatsAppOpen}
+            onClose={() => setIsWhatsAppOpen(false)}
+            tenantName={tenant?.name || 'Tenant'}
+            tenantPhone={tenant?.phone || null}
+            buildingName={activeTenancy.beds?.rooms?.buildings?.name}
+            roomNumber={activeTenancy.beds?.rooms?.room_number}
+            bedLabel={activeTenancy.beds?.bed_label}
+            defaultRent={Math.max(0, pendingBalance - electricityDue) || Number(activeTenancy.rate)}
+            defaultElectricity={electricityDue}
+          />
+        </>
       )}
 
       {/* Edit Payment Modal */}

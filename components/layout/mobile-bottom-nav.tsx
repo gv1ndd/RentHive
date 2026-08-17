@@ -18,7 +18,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-border-subtle flex items-center justify-around px-2 py-1.5 shadow-lg safe-area-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-surface/95 backdrop-blur-md border-t border-border-subtle flex items-center justify-around px-2 py-1.5 shadow-lg safe-area-bottom">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const isActive =

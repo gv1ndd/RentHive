@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WhatsAppRentScriptModal } from '@/components/tenants/whatsapp-rent-script-modal';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
@@ -22,6 +23,7 @@ import {
   Building2,
   Users,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { Tenant, Tenancy, Room, Bed, Building } from '@/types/domain';
 
@@ -49,6 +51,7 @@ export default function ReportsPage() {
   const [totalOutstandingDues, setTotalOutstandingDues] = useState(0);
   const [totalElectricityBilled, setTotalElectricityBilled] = useState(0);
   const [occupancyRate, setOccupancyRate] = useState(0);
+  const [whatsAppTarget, setWhatsAppTarget] = useState<TenantDueItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadReportsData = useCallback(async () => {
@@ -435,13 +438,22 @@ export default function ReportsPage() {
                       {formatCurrency(d.totalPendingDue)}
                     </td>
                     <td className="py-3 px-3.5 text-right">
-                      <Link
-                        href={`/tenants/${d.tenantId}/history`}
-                        className="p-1.5 text-primary hover:bg-primary/10 rounded-lg inline-flex items-center"
-                        title="Open Tenant Hub"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setWhatsAppTarget(d)}
+                          className="p-1.5 text-[#25D366] hover:bg-[#25D366]/10 rounded-lg inline-flex items-center cursor-pointer transition-colors"
+                          title="Share WhatsApp Script"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
+                        <Link
+                          href={`/tenants/${d.tenantId}/history`}
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg inline-flex items-center"
+                          title="Open Tenant Hub"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -450,6 +462,21 @@ export default function ReportsPage() {
           </div>
         )}
       </Card>
+
+      {/* WhatsApp Rent Script Modal */}
+      {whatsAppTarget && (
+        <WhatsAppRentScriptModal
+          isOpen={Boolean(whatsAppTarget)}
+          onClose={() => setWhatsAppTarget(null)}
+          tenantName={whatsAppTarget.tenantName}
+          tenantPhone={whatsAppTarget.tenantPhone}
+          buildingName={whatsAppTarget.buildingName}
+          roomNumber={whatsAppTarget.roomNumber}
+          bedLabel={whatsAppTarget.bedLabel}
+          defaultRent={whatsAppTarget.rentDue}
+          defaultElectricity={whatsAppTarget.electricityDue}
+        />
+      )}
     </div>
   );
 }

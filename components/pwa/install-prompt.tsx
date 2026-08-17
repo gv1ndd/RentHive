@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Share, X, Smartphone } from 'lucide-react';
+import { Download, Share2, PlusSquare, X, Sparkles } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -72,7 +72,7 @@ export function InstallPrompt() {
   if (isStandalone || isDismissed) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-6 right-4 left-4 lg:left-auto lg:max-w-md z-40 bg-surface border-2 border-primary/30 rounded-2xl p-4 shadow-xl animate-in slide-in-from-bottom duration-300">
+    <div className="fixed bottom-20 md:bottom-6 right-4 left-4 md:left-auto md:max-w-sm z-40 bg-surface border-2 border-primary/30 rounded-2xl p-4 shadow-xl animate-in slide-in-from-bottom duration-300">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-xs">
@@ -98,7 +98,7 @@ export function InstallPrompt() {
       {isIOS ? (
         <div className="mt-3 p-2.5 rounded-xl bg-surface-container/80 border border-border-subtle text-xs space-y-1.5">
           <div className="flex items-center gap-1.5 font-semibold text-foreground">
-            <Share className="w-3.5 h-3.5 text-primary" />
+            <Share2 className="w-3.5 h-3.5 text-primary" />
             <span>To install on iOS:</span>
           </div>
           <p className="text-muted text-[11px] leading-relaxed">

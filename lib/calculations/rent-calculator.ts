@@ -1,6 +1,6 @@
 import { Payment } from '@/types/domain';
 import { RentCalculationResult } from '@/types/calculations';
-import { daysInMonth, getBillingCycleStartDate } from '../utils/dates';
+import { getBillingCycleStartDate } from '../utils/dates';
 
 interface CalculatePendingRentParams {
   rate: number;
