@@ -173,7 +173,6 @@ export default function TenantHistoryPage({
           payments: allPayments.filter((p) => p.tenancy_id === activeTenancy.id),
           asOfDate: new Date(),
           utilityBills: utils,
-          firstMonthFree: activeTenancy.first_month_free,
         });
 
         setPendingBalance(calc.pendingBalance);

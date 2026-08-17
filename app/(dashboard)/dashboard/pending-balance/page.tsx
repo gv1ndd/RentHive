@@ -134,7 +134,6 @@ export default function PendingBalancePage() {
           payments: tPayments,
           asOfDate: new Date(),
           utilityBills: tUtils,
-          firstMonthFree: t.first_month_free,
         });
 
         if (calc.pendingBalance > 0) {

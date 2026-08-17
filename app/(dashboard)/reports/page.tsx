@@ -187,7 +187,6 @@ export default function ReportsPage() {
           payments: tPayments,
           asOfDate: new Date(),
           utilityBills: tUtils,
-          firstMonthFree: t.first_month_free,
         });
 
         // Itemized electricity charges

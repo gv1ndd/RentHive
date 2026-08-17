@@ -22,6 +22,7 @@ import {
   Zap,
   Building,
   BarChart3,
+  Clock,
 } from 'lucide-react';
 import { BuildingStats, UpcomingMoveOut } from '@/types/calculations';
 import { AdvanceBooking, Bed, Room } from '@/types/domain';
@@ -262,7 +263,6 @@ export default function DashboardPage() {
           payments: tPayments,
           asOfDate: now,
           utilityBills: tUtils,
-          firstMonthFree: t.first_month_free,
         });
 
         // Floor at 0 for aggregate pending balance
@@ -284,6 +284,36 @@ export default function DashboardPage() {
           reservedCount++;
         } else {
           vacantCount++;
+        }
+      }
+
+      // Calculate upcoming rent due within the next 10 days
+      let upcomingRentTotal = 0;
+      let upcomingTenanciesCount = 0;
+
+      for (const t of activeTenancies) {
+        const dueDay = t.due_day || 1;
+        const nowYear = now.getFullYear();
+        const nowMonth = now.getMonth();
+        const todayDate = now.getDate();
+
+        const daysInCurMonth = new Date(nowYear, nowMonth + 1, 0).getDate();
+        const curMonthDue = new Date(nowYear, nowMonth, Math.min(dueDay, daysInCurMonth));
+
+        let nextDue: Date;
+        if (curMonthDue.getTime() >= new Date(nowYear, nowMonth, todayDate).getTime()) {
+          nextDue = curMonthDue;
+        } else {
+          const daysInNextMonth = new Date(nowYear, nowMonth + 2, 0).getDate();
+          nextDue = new Date(nowYear, nowMonth + 1, Math.min(dueDay, daysInNextMonth));
+        }
+
+        const diffTime = nextDue.getTime() - new Date(nowYear, nowMonth, todayDate).getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 0 && diffDays <= 10) {
+          upcomingRentTotal += Number(t.rate) || 0;
+          upcomingTenanciesCount++;
         }
       }
 
@@ -320,6 +350,8 @@ export default function DashboardPage() {
         pendingBalance: totalPendingDues,
         electricityReceivedThisMonth: totalElectricityThisMonth,
         electricityBilled: 0,
+        upcomingRent: upcomingRentTotal,
+        upcomingCount: upcomingTenanciesCount,
       });
     } catch (e) {
       console.error('Error loading dashboard data:', e);
@@ -383,25 +415,25 @@ export default function DashboardPage() {
 
       {/* Hero Metric Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Occupancy Card */}
-        <Link href="/dashboard/checked-in">
+        {/* Upcoming Rent Card */}
+        <Link href="/dashboard/upcoming">
           <Card interactive className="space-y-2 h-full">
             <div className="flex items-center justify-between text-muted">
-              <span className="text-xs font-semibold">Active Occupants</span>
-              <Users className="w-4 h-4 text-status-occupied" />
+              <span className="text-xs font-semibold">Upcoming Rent</span>
+              <Clock className="w-4 h-4 text-primary" />
             </div>
             <div className="text-2xl font-bold text-foreground">
               {isLoading ? (
-                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-24" />
               ) : (
-                <AnimatedNumber value={stats.checkedInTenants} />
+                <AnimatedNumber value={stats.upcomingRent || 0} isCurrency />
               )}
             </div>
             <div className="text-[11px] text-muted flex items-center gap-1.5">
-              <Badge variant="occupied" size="sm">
-                {stats.occupiedBeds} occupied
+              <Badge variant="primary" size="sm">
+                {stats.upcomingCount || 0} due
               </Badge>
-              <span>/ {stats.totalBeds} beds</span>
+              <span>within 10 days</span>
             </div>
           </Card>
         </Link>

@@ -149,7 +149,6 @@ export default function TenantsPage() {
           payments: tPayments,
           asOfDate: new Date(),
           utilityBills: tUtils,
-          firstMonthFree: t.first_month_free,
         });
 
         if (!t.check_out_date) {

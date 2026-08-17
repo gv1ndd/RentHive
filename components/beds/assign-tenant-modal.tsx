@@ -30,7 +30,6 @@ export function AssignTenantModal({
   const [rate, setRate] = useState('6000');
   const [dueDay, setDueDay] = useState('1');
   const [checkInDate, setCheckInDate] = useState(formatDate(new Date()));
-  const [firstMonthFree, setFirstMonthFree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -102,7 +101,6 @@ export function AssignTenantModal({
         tenant_id: tenantId,
         rate: parseFloat(rate) || 0,
         due_day: parseInt(dueDay, 10) || 1,
-        first_month_free: firstMonthFree,
         check_in_date: checkInDate,
       });
 
@@ -164,7 +162,7 @@ export function AssignTenantModal({
         )}
 
         {tab === 'new' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <>
             <Input
               label="Full Name"
               placeholder="e.g. Rahul Sharma"
@@ -179,7 +177,7 @@ export function AssignTenantModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
-          </div>
+          </>
         ) : (
           <Select
             label="Select Existing Tenant"
@@ -219,22 +217,6 @@ export function AssignTenantModal({
             required
           />
         </div>
-
-        {/* First Month Free Toggle */}
-        <label className="flex items-center gap-2.5 p-3 rounded-xl bg-surface-container border border-border-subtle text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={firstMonthFree}
-            onChange={(e) => setFirstMonthFree(e.target.checked)}
-            className="rounded border-border text-primary focus:ring-primary w-4 h-4"
-          />
-          <div>
-            <span className="font-semibold text-foreground">First Month Free</span>
-            <p className="text-muted text-[11px]">
-              Waives first cycle rent (utilities remain billable).
-            </p>
-          </div>
-        </label>
 
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>

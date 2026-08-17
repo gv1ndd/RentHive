@@ -60,7 +60,6 @@ export function ActiveTenancyModal({
           dueDay: tenancy.due_day || 1,
           payments: (paymentsData || []) as any[],
           asOfDate: new Date(),
-          firstMonthFree: tenancy.first_month_free,
         });
 
         setPendingDues(result.pendingBalance);

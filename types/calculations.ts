@@ -19,6 +19,8 @@ export interface BuildingStats {
   pendingBalance: number;
   electricityReceivedThisMonth: number;
   electricityBilled: number;
+  upcomingRent?: number;
+  upcomingCount?: number;
 }
 
 export interface UpcomingMoveOut {

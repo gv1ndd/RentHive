@@ -41,7 +41,6 @@ export function ConvertBookingModal({
   const [rate, setRate] = useState('6000');
   const [dueDay, setDueDay] = useState('1');
   const [checkInDate, setCheckInDate] = useState(formatDate(new Date()));
-  const [firstMonthFree, setFirstMonthFree] = useState(false);
   const [rooms, setRooms] = useState<RoomWithVacantBeds[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +112,7 @@ export function ConvertBookingModal({
         p_bed_id: selectedBedId,
         p_rate: parseFloat(rate) || 0,
         p_due_day: parseInt(dueDay, 10) || 1,
-        p_first_month_free: firstMonthFree,
+        p_first_month_free: false,
         p_check_in_date: checkInDate,
       });
 
@@ -180,30 +179,31 @@ export function ConvertBookingModal({
               setSelectedRoomId(e.target.value);
               setSelectedBedId('');
             }}
+            options={rooms.map((r) => ({
+              value: r.id,
+              label: `Room ${r.room_number}`,
+            }))}
             required
-          >
-            <option value="">Choose Room...</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                Room {r.room_number}
-              </option>
-            ))}
-          </Select>
+          />
 
           <Select
             label="Select Bed"
             value={selectedBedId}
-            onChange={(e) => setSelectedBedId(e.target.value)}
-            disabled={!selectedRoomId || availableBeds.length === 0}
+            onChange={(e) => {
+              setSelectedBedId(e.target.value);
+              const room = rooms.find((r) => r.id === selectedRoomId);
+              const bed = room?.beds.find((b) => b.id === e.target.value);
+              if (bed) {
+                setRate(String(bed.default_rate || rate));
+              }
+            }}
+            options={availableBeds.map((b) => ({
+              value: b.id,
+              label: `${b.bed_label} (₹${b.default_rate}/mo)`,
+            }))}
             required
-          >
-            <option value="">Choose Bed...</option>
-            {availableBeds.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.bed_label} ({formatCurrency(Number(b.default_rate))}/mo)
-              </option>
-            ))}
-          </Select>
+            disabled={!selectedRoomId}
+          />
         </div>
 
         {/* Rate, Due Day, Check-In Date */}
@@ -234,22 +234,6 @@ export function ConvertBookingModal({
             required
           />
         </div>
-
-        {/* First Month Free */}
-        <label className="flex items-center gap-2.5 p-3 rounded-xl bg-surface-container border border-border-subtle text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={firstMonthFree}
-            onChange={(e) => setFirstMonthFree(e.target.checked)}
-            className="rounded border-border text-primary focus:ring-primary w-4 h-4"
-          />
-          <div>
-            <span className="font-semibold text-foreground">First Month Free</span>
-            <p className="text-muted text-[11px]">
-              Waives first cycle rent (utilities remain billable).
-            </p>
-          </div>
-        </label>
 
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>

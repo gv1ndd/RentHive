@@ -10,12 +10,10 @@ interface CalculatePendingRentParams {
   payments: Payment[];
   asOfDate: Date | string;
   utilityBills?: Array<{ amount_due?: number; amountDue?: number }>;
-  firstMonthFree?: boolean;
 }
 
 /**
  * Calculates the pending rent and utility balance for a tenancy up to asOfDate.
- * Matches Flutter rent_calculator.dart calculatePendingRent implementation.
  */
 export function calculatePendingRent({
   rate,
@@ -25,7 +23,6 @@ export function calculatePendingRent({
   payments,
   asOfDate,
   utilityBills = [],
-  firstMonthFree = false,
 }: CalculatePendingRentParams): RentCalculationResult {
   const checkInRaw = typeof checkInDate === 'string' ? new Date(checkInDate) : checkInDate;
   const checkIn = new Date(checkInRaw.getFullYear(), checkInRaw.getMonth(), checkInRaw.getDate());
@@ -81,15 +78,14 @@ export function calculatePendingRent({
       break;
     }
 
-    if (firstMonthFree && isFirstCycle) {
-      // First month is free - waive rent charge
-    } else if (isFirstCycle) {
+    if (isFirstCycle) {
       const msPerDay = 1000 * 60 * 60 * 24;
       const totalDaysInCycle = Math.round((nextCycleStart.getTime() - cycleStart.getTime()) / msPerDay);
       const daysOccupied = Math.round((nextCycleStart.getTime() - checkIn.getTime()) / msPerDay);
 
-      const prorated = rate * (daysOccupied / Math.max(1, totalDaysInCycle));
-      totalCharged += Math.round(prorated);
+      const dailyRate = Math.round((rate / Math.max(1, totalDaysInCycle)) * 100) / 100;
+      const prorated = Math.round(dailyRate * daysOccupied);
+      totalCharged += prorated;
     } else {
       totalCharged += rate;
     }
