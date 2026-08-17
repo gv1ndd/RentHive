@@ -11,6 +11,7 @@ import { Bed, Tenancy, Tenant } from '@/types/domain';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
+import { RecordPaymentModal } from '@/components/payments/record-payment-modal';
 import {
   User,
   Phone,
@@ -40,6 +41,7 @@ export function ActiveTenancyModal({
   const [pendingDues, setPendingDues] = useState<number>(0);
   const [moveOutDate, setMoveOutDate] = useState<string>(formatDate(new Date()));
   const [isMoveOutOpen, setIsMoveOutOpen] = useState(false);
+  const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -291,23 +293,37 @@ export function ActiveTenancyModal({
             </div>
           </form>
         ) : (
-          <div className="flex items-center justify-between pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMoveOutOpen(true)}
-              leftIcon={<CalendarDays className="w-3.5 h-3.5" />}
-            >
-              Set Move-Out Date
-            </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRecordPaymentOpen(true)}
+                leftIcon={<CreditCard className="w-3.5 h-3.5 text-primary" />}
+                className="flex-1 sm:flex-initial"
+              >
+                Record Payment
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMoveOutOpen(true)}
+                leftIcon={<CalendarDays className="w-3.5 h-3.5" />}
+                className="flex-1 sm:flex-initial"
+              >
+                Set Notice
+              </Button>
+            </div>
 
-            <Link href={`/tenants/${tenancy.tenant_id}/history`}>
+            <Link href={`/tenants/${tenancy.tenant_id}/history`} className="w-full sm:w-auto">
               <Button
                 type="button"
                 variant="primary"
                 size="sm"
                 rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                className="w-full sm:w-auto"
               >
                 Full Tenant Hub
               </Button>
@@ -315,6 +331,20 @@ export function ActiveTenancyModal({
           </div>
         )}
       </div>
+
+      {/* Record Payment Modal */}
+      {isRecordPaymentOpen && (
+        <RecordPaymentModal
+          isOpen={isRecordPaymentOpen}
+          onClose={() => setIsRecordPaymentOpen(false)}
+          tenancyId={tenancy.id}
+          defaultAmount={pendingDues > 0 ? pendingDues : Number(tenancy.rate)}
+          onSuccess={() => {
+            onSuccess();
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }

@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { AdvanceBooking } from '@/types/domain';
 import { formatCurrency } from '@/lib/utils/currency';
-import { formatDate } from '@/lib/utils/dates';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
+import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
+import { CheckCircle2, AlertCircle, Calculator } from 'lucide-react';
 
 interface ConvertBookingModalProps {
   isOpen: boolean;
@@ -92,6 +93,71 @@ export function ConvertBookingModal({
     );
     return !hasActiveTenancy || b.id === booking?.bed_id;
   });
+
+  // Live Proration Preview Calculation (with advance token deduction)
+  const prorationPreview = React.useMemo(() => {
+    const numRate = parseFloat(rate) || 0;
+    const numDueDay = parseInt(dueDay, 10) || 1;
+    if (!checkInDate || numRate <= 0) return null;
+
+    try {
+      const advancePaid = Number(booking?.paid_amount) || 0;
+      const result = calculatePendingRent({
+        rate: numRate,
+        checkInDate,
+        dueDay: numDueDay,
+        payments: (advancePaid > 0 ? [{
+          id: 'advance-preview',
+          tenancy_id: 'preview',
+          amount: advancePaid,
+          type: 'rent' as const,
+          date: checkInDate,
+          deleted_at: null,
+        }] : []) as any[],
+        asOfDate: checkInDate,
+      });
+
+      const checkInRaw = new Date(checkInDate);
+      const checkIn = new Date(checkInRaw.getFullYear(), checkInRaw.getMonth(), checkInRaw.getDate());
+
+      let curY = checkIn.getFullYear();
+      let curM = checkIn.getMonth() + 1;
+      const thisMonthCycleStart = getBillingCycleStartDate(curY, curM, numDueDay);
+      if (checkIn.getTime() < thisMonthCycleStart.getTime()) {
+        curM--;
+        if (curM < 1) {
+          curM = 12;
+          curY--;
+        }
+      }
+
+      const cycleStart = getBillingCycleStartDate(curY, curM, numDueDay);
+      let nextM = curM + 1;
+      let nextY = curY;
+      if (nextM > 12) {
+        nextM = 1;
+        nextY++;
+      }
+      const nextCycleStart = getBillingCycleStartDate(nextY, nextM, numDueDay);
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const totalDaysInCycle = Math.round((nextCycleStart.getTime() - cycleStart.getTime()) / msPerDay);
+      const daysOccupied = Math.round((nextCycleStart.getTime() - checkIn.getTime()) / msPerDay);
+      const dailyRate = Math.round((numRate / Math.max(1, totalDaysInCycle)) * 100) / 100;
+
+      return {
+        grossRent: result.totalCharged,
+        advancePaid,
+        netDue: result.pendingBalance,
+        daysOccupied,
+        totalDaysInCycle,
+        dailyRate,
+        nextDueDate: nextCycleStart,
+      };
+    } catch {
+      return null;
+    }
+  }, [rate, dueDay, checkInDate, booking]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,6 +300,36 @@ export function ConvertBookingModal({
             required
           />
         </div>
+
+        {/* Live Proration & Advance Token Preview Card */}
+        {prorationPreview && (
+          <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <Calculator className="w-3.5 h-3.5 text-primary" />
+                <span>Calculated Entry Settlement</span>
+              </span>
+              <span className="text-sm font-bold text-primary">
+                {formatCurrency(prorationPreview.netDue)} Net Due at Check-In
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-muted pt-1 border-t border-border-subtle/50">
+              <div>
+                <span>Gross Entry Rent:</span>
+                <span className="font-medium text-foreground ml-1">{formatCurrency(prorationPreview.grossRent)}</span>
+              </div>
+              <div>
+                <span>Prepaid Advance Token:</span>
+                <span className="font-medium text-status-vacant ml-1">−{formatCurrency(prorationPreview.advancePaid)}</span>
+              </div>
+              <div>
+                <span>Days Occupied:</span>
+                <span className="font-medium text-foreground ml-1">{prorationPreview.daysOccupied} of {prorationPreview.totalDaysInCycle} days</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>

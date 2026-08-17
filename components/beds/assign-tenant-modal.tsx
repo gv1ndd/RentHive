@@ -7,7 +7,10 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { Bed, Tenant } from '@/types/domain';
-import { formatDate } from '@/lib/utils/dates';
+import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
+import { formatCurrency } from '@/lib/utils/currency';
+import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
+import { Calculator } from 'lucide-react';
 
 interface AssignTenantModalProps {
   isOpen: boolean;
@@ -59,6 +62,62 @@ export function AssignTenantModal({
       fetchExisting();
     }
   }, [isOpen, tab, supabase]);
+
+  // Live Proration Preview Calculation
+  const prorationPreview = React.useMemo(() => {
+    const numRate = parseFloat(rate) || 0;
+    const numDueDay = parseInt(dueDay, 10) || 1;
+    if (!checkInDate || numRate <= 0) return null;
+
+    try {
+      const result = calculatePendingRent({
+        rate: numRate,
+        checkInDate,
+        dueDay: numDueDay,
+        payments: [],
+        asOfDate: checkInDate,
+      });
+
+      const checkInRaw = new Date(checkInDate);
+      const checkIn = new Date(checkInRaw.getFullYear(), checkInRaw.getMonth(), checkInRaw.getDate());
+
+      let curY = checkIn.getFullYear();
+      let curM = checkIn.getMonth() + 1;
+      const thisMonthCycleStart = getBillingCycleStartDate(curY, curM, numDueDay);
+      if (checkIn.getTime() < thisMonthCycleStart.getTime()) {
+        curM--;
+        if (curM < 1) {
+          curM = 12;
+          curY--;
+        }
+      }
+
+      const cycleStart = getBillingCycleStartDate(curY, curM, numDueDay);
+      let nextM = curM + 1;
+      let nextY = curY;
+      if (nextM > 12) {
+        nextM = 1;
+        nextY++;
+      }
+      const nextCycleStart = getBillingCycleStartDate(nextY, nextM, numDueDay);
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const totalDaysInCycle = Math.round((nextCycleStart.getTime() - cycleStart.getTime()) / msPerDay);
+      const daysOccupied = Math.round((nextCycleStart.getTime() - checkIn.getTime()) / msPerDay);
+      const dailyRate = Math.round((numRate / Math.max(1, totalDaysInCycle)) * 100) / 100;
+
+      return {
+        grossRent: result.totalCharged,
+        daysOccupied,
+        totalDaysInCycle,
+        dailyRate,
+        nextDueDate: nextCycleStart,
+        isFullCycle: daysOccupied === totalDaysInCycle,
+      };
+    } catch {
+      return null;
+    }
+  }, [rate, dueDay, checkInDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,6 +276,35 @@ export function AssignTenantModal({
             required
           />
         </div>
+
+        {/* Live Proration Preview Card */}
+        {prorationPreview && (
+          <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <Calculator className="w-3.5 h-3.5 text-primary" />
+                <span>Entry Period Proration</span>
+              </span>
+              <span className="text-sm font-bold text-primary">
+                {formatCurrency(prorationPreview.grossRent)} Due at Check-in
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-muted pt-1 border-t border-border-subtle/50">
+              <div>
+                <span>Days in Entry Period:</span>
+                <span className="font-medium text-foreground ml-1">{prorationPreview.daysOccupied} of {prorationPreview.totalDaysInCycle} days</span>
+              </div>
+              <div>
+                <span>Daily Rate:</span>
+                <span className="font-medium text-foreground ml-1">₹{prorationPreview.dailyRate}/day</span>
+              </div>
+              <div>
+                <span>First Full Cycle:</span>
+                <span className="font-medium text-foreground ml-1">{formatDate(prorationPreview.nextDueDate)}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
