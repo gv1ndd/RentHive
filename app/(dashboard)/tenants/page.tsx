@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
+import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
 import {
   Users,
   Search,
@@ -51,6 +52,7 @@ export default function TenantsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<TenantFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [checkoutTarget, setCheckoutTarget] = useState<TenantWithTenancy | null>(null);
 
   const loadTenants = useCallback(async () => {
     if (!activeBuildingId) {
@@ -335,20 +337,47 @@ export default function TenantsPage() {
 
                     {/* Room & Bed Allocation */}
                     {active ? (
-                      <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">
-                            Room {active.beds?.rooms?.room_number} — {active.beds?.bed_label}
-                          </span>
-                          <span className="text-muted font-medium">
-                            {formatCurrency(Number(active.rate))}/mo
-                          </span>
+                      active.beds?.rooms?.room_number ? (
+                        <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">
+                              Room {active.beds.rooms.room_number} — {active.beds.bed_label}
+                            </span>
+                            <span className="text-muted font-medium">
+                              {formatCurrency(Number(active.rate))}/mo
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-muted flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Since {formatDate(active.check_in_date)}</span>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-muted flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>Since {formatDate(active.check_in_date)}</span>
+                      ) : (
+                        <div className="p-2.5 rounded-xl bg-status-pending/10 border border-status-pending/20 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-status-pending flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>Room / Bed Deleted</span>
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCheckoutTarget(tenant);
+                              }}
+                              className="h-6 text-[10px] px-2 border-status-pending/30 text-status-pending hover:bg-status-pending/20"
+                            >
+                              Check Out
+                            </Button>
+                          </div>
+                          <div className="text-[11px] text-muted flex items-center justify-between">
+                            <span>Since {formatDate(active.check_in_date)}</span>
+                            <span>{formatCurrency(Number(active.rate))}/mo</span>
+                          </div>
                         </div>
-                      </div>
+                      )
                     ) : (
                       <div className="p-2.5 rounded-xl bg-surface-container/40 text-xs text-muted">
                         Past tenant · {tenant.pastTenancies.length} previous stay(s)
@@ -391,6 +420,23 @@ export default function TenantsPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Check Out Tenant Modal */}
+      {checkoutTarget?.activeTenancy && (
+        <CheckoutTenantModal
+          isOpen={Boolean(checkoutTarget)}
+          onClose={() => setCheckoutTarget(null)}
+          tenancy={checkoutTarget.activeTenancy}
+          tenantName={checkoutTarget.name}
+          roomInfo={
+            checkoutTarget.activeTenancy.beds?.rooms?.room_number
+              ? `Room ${checkoutTarget.activeTenancy.beds.rooms.room_number} (${checkoutTarget.activeTenancy.beds.bed_label})`
+              : 'Unassigned / Deleted Room'
+          }
+          pendingBalance={checkoutTarget.pendingBalance}
+          onSuccess={loadTenants}
+        />
       )}
     </div>
   );

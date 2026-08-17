@@ -13,6 +13,7 @@ import { RecordPaymentModal } from '@/components/payments/record-payment-modal';
 import { EditPaymentModal } from '@/components/payments/edit-payment-modal';
 import { AddTenantNoteModal } from '@/components/tenants/add-tenant-note-modal';
 import { WhatsAppRentScriptModal } from '@/components/tenants/whatsapp-rent-script-modal';
+import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -31,6 +32,7 @@ import {
   MessageSquare,
   History,
   CheckCircle2,
+  UserX,
 } from 'lucide-react';
 import { Tenant, Tenancy, Payment, TenantNote } from '@/types/domain';
 
@@ -68,8 +70,9 @@ export default function TenantHistoryPage({
   const [totalPaid, setTotalPaid] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modals
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isDeleteTenantOpen, setIsDeleteTenantOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [electricityDue, setElectricityDue] = useState(0);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -228,6 +231,25 @@ export default function TenantHistoryPage({
     }
   };
 
+  const handleDeleteTenantConfirm = async () => {
+    if (!tenant) return;
+    setIsActionLoading(true);
+    try {
+      // Soft delete tenant
+      const { error } = await supabase
+        .from('tenants')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', tenant.id);
+
+      if (error) throw error;
+      router.push('/tenants');
+    } catch (e) {
+      console.error('Error deleting tenant:', e);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const activeTenancy = tenancies.find((t) => !t.check_out_date);
 
   if (isLoading) {
@@ -256,7 +278,7 @@ export default function TenantHistoryPage({
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h1 className="text-xl font-bold text-foreground">Tenant Hub — {tenant?.name}</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {activeTenancy && (
               <>
                 <Button
@@ -277,6 +299,16 @@ export default function TenantHistoryPage({
                 >
                   Record Payment
                 </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCheckoutOpen(true)}
+                  leftIcon={<UserX className="w-4 h-4 text-status-occupied" />}
+                  className="border-status-occupied/30 text-status-occupied hover:bg-status-occupied/10"
+                >
+                  Check Out Tenant
+                </Button>
               </>
             )}
             <Button
@@ -286,6 +318,15 @@ export default function TenantHistoryPage({
               leftIcon={<Plus className="w-4 h-4" />}
             >
               Add Note
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeleteTenantOpen(true)}
+              leftIcon={<Trash2 className="w-4 h-4 text-muted" />}
+              className="hover:border-status-occupied/30 hover:text-status-occupied"
+            >
+              Delete
             </Button>
           </div>
         </div>
@@ -340,29 +381,51 @@ export default function TenantHistoryPage({
           </div>
 
           {activeTenancy ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
-                <span className="text-muted block text-[11px]">Property</span>
-                <span className="font-bold text-foreground">
-                  {activeTenancy.beds?.rooms?.buildings?.name || 'Property'}
-                </span>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
+                  <span className="text-muted block text-[11px]">Property</span>
+                  <span className="font-bold text-foreground">
+                    {activeTenancy.beds?.rooms?.buildings?.name || 'Property'}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
+                  <span className="text-muted block text-[11px]">Room & Bed</span>
+                  <span className="font-bold text-foreground">
+                    {activeTenancy.beds?.rooms?.room_number
+                      ? `Room ${activeTenancy.beds.rooms.room_number} — ${activeTenancy.beds.bed_label}`
+                      : 'Unallocated / Room Deleted'}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
+                  <span className="text-muted block text-[11px]">Monthly Rate</span>
+                  <span className="font-bold text-foreground">
+                    {formatCurrency(Number(activeTenancy.rate))}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
+                  <span className="text-muted block text-[11px]">Rent Due Day</span>
+                  <span className="font-bold text-foreground">Day {activeTenancy.due_day}</span>
+                </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
-                <span className="text-muted block text-[11px]">Room & Bed</span>
-                <span className="font-bold text-foreground">
-                  Room {activeTenancy.beds?.rooms?.room_number} — {activeTenancy.beds?.bed_label}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
-                <span className="text-muted block text-[11px]">Monthly Rate</span>
-                <span className="font-bold text-foreground">
-                  {formatCurrency(Number(activeTenancy.rate))}
-                </span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle">
-                <span className="text-muted block text-[11px]">Rent Due Day</span>
-                <span className="font-bold text-foreground">Day {activeTenancy.due_day}</span>
-              </div>
+
+              {!activeTenancy.beds?.rooms?.room_number && (
+                <div className="p-3 rounded-xl bg-status-pending/10 border border-status-pending/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center gap-2 text-status-pending font-medium">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>The room or bed previously assigned to this tenant has been deleted.</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCheckoutOpen(true)}
+                    leftIcon={<UserX className="w-3.5 h-3.5" />}
+                    className="shrink-0 border-status-pending/30 text-status-pending hover:bg-status-pending/10"
+                  >
+                    Check Out & Move to Ex-Tenants
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-4 text-center text-xs text-muted">
@@ -659,6 +722,35 @@ export default function TenantHistoryPage({
         title="Delete Note?"
         description="Are you sure you want to delete this note?"
         confirmText="Delete Note"
+        isDanger
+        isLoading={isActionLoading}
+      />
+
+      {/* Checkout / Move to Ex-Tenants Modal */}
+      {activeTenancy && (
+        <CheckoutTenantModal
+          isOpen={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+          tenancy={activeTenancy}
+          tenantName={tenant?.name}
+          roomInfo={
+            activeTenancy.beds?.rooms?.room_number
+              ? `Room ${activeTenancy.beds.rooms.room_number} (${activeTenancy.beds.bed_label})`
+              : 'Unallocated / Deleted Room'
+          }
+          pendingBalance={pendingBalance}
+          onSuccess={loadTenantHub}
+        />
+      )}
+
+      {/* Delete Tenant Confirmation */}
+      <ConfirmModal
+        isOpen={isDeleteTenantOpen}
+        onClose={() => setIsDeleteTenantOpen(false)}
+        onConfirm={handleDeleteTenantConfirm}
+        title={`Delete Tenant Record (${tenant?.name})?`}
+        description={`Are you sure you want to move ${tenant?.name} to Trash? All historical payments and tenancies will be preserved in Trash and can be restored.`}
+        confirmText="Delete Tenant"
         isDanger
         isLoading={isActionLoading}
       />

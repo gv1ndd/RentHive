@@ -27,6 +27,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { Bed, Room, Building, Tenancy, Tenant, AdvanceBooking } from '@/types/domain';
+import { softDeleteBed } from '@/lib/services/inventory-service';
 
 interface BedFullDetails extends Bed {
   status: 'vacant' | 'reserved' | 'occupied' | 'moving_out';
@@ -172,12 +173,7 @@ export default function RoomBedsPage({
     setIsDeleting(true);
 
     try {
-      const { error } = await supabase
-        .from('beds')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', deletingBed.id);
-
-      if (error) throw error;
+      await softDeleteBed(supabase, deletingBed.id);
 
       setDeletingBed(null);
       await loadRoomAndBeds();
@@ -421,7 +417,11 @@ export default function RoomBedsPage({
         onClose={() => setDeletingBed(null)}
         onConfirm={handleDeleteConfirm}
         title="Move Bed to Trash?"
-        description={`Are you sure you want to move ${deletingBed?.bed_label} to Trash? You can restore it anytime from the Trash Hub.`}
+        description={
+          beds.find((b) => b.id === deletingBed?.id)?.activeTenancy
+            ? `⚠️ Warning: ${deletingBed?.bed_label} is currently occupied by ${beds.find((b) => b.id === deletingBed?.id)?.activeTenancy?.tenants?.name || 'an active tenant'}. Deleting this bed will automatically check them out and move them to Ex-Tenants history.`
+            : `Are you sure you want to move ${deletingBed?.bed_label} to Trash? You can restore it anytime from the Trash Hub.`
+        }
         confirmText="Move to Trash"
         isDanger
         isLoading={isDeleting}

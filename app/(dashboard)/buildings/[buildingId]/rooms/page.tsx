@@ -399,7 +399,11 @@ export default function BuildingRoomsPage({
         onClose={() => setDeletingRoom(null)}
         onConfirm={handleDeleteConfirm}
         title="Move Room to Trash?"
-        description={`Are you sure you want to move Room ${deletingRoom?.room_number} and all its beds to Trash? You can restore it anytime from the Trash Hub.`}
+        description={
+          rooms.find((r) => r.id === deletingRoom?.id)?.beds.some((b) => b.status === 'occupied' || b.status === 'moving_out')
+            ? `⚠️ Warning: Room ${deletingRoom?.room_number} has active occupants. Deleting this room will automatically check them out and move them to Ex-Tenants history so no ghost records remain.`
+            : `Are you sure you want to move Room ${deletingRoom?.room_number} and all its beds to Trash? You can restore it anytime from the Trash Hub.`
+        }
         confirmText="Move to Trash"
         isDanger
         isLoading={isDeleting}
