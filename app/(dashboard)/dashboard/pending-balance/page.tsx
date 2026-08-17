@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
+import { cleanupOrphanedTenancies } from '@/lib/services/inventory-service';
 import {
   ArrowLeft,
   AlertCircle,
@@ -60,16 +61,21 @@ export default function PendingBalancePage() {
 
     setIsLoading(true);
     try {
+      // 0. Clean up any orphaned tenancies from deleted rooms/beds
+      await cleanupOrphanedTenancies(supabase, activeBuildingId);
+
       const { data: rawTenancies } = await (supabase.from('tenancies') as any)
         .select(`
           *,
           beds (
             id,
             bed_label,
+            deleted_at,
             rooms (
               id,
               room_number,
-              building_id
+              building_id,
+              deleted_at
             )
           ),
           tenants (*)
@@ -80,7 +86,9 @@ export default function PendingBalancePage() {
       const active = (rawTenancies || []).filter(
         (t: any) =>
           t.beds?.rooms?.building_id === activeBuildingId &&
-          !t.tenants?.deleted_at
+          !t.tenants?.deleted_at &&
+          !t.beds?.deleted_at &&
+          !t.beds?.rooms?.deleted_at
       );
 
       const tenancyIds = active.map((t: any) => t.id);

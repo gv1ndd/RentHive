@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
+import { cleanupOrphanedTenancies } from '@/lib/services/inventory-service';
 import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
 import {
   Users,
@@ -62,6 +63,9 @@ export default function TenantsPage() {
 
     setIsLoading(true);
     try {
+      // 0. Clean up any orphaned tenancies from deleted rooms/beds
+      await cleanupOrphanedTenancies(supabase, activeBuildingId);
+
       // 1. Fetch all tenancies for active building
       const { data: rawTenancies } = await (supabase.from('tenancies') as any)
         .select(`
@@ -69,10 +73,12 @@ export default function TenantsPage() {
           beds (
             id,
             bed_label,
+            deleted_at,
             rooms (
               id,
               room_number,
-              building_id
+              building_id,
+              deleted_at
             )
           ),
           tenants (*)

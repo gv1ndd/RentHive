@@ -214,3 +214,51 @@ export async function restoreBed(
     }
   }
 }
+
+/**
+ * Automatically checks out any active tenancies attached to deleted rooms or beds.
+ * Ensures no ghost active records remain across dashboard, pending balances, or tenant directory.
+ */
+export async function cleanupOrphanedTenancies(
+  supabase: SupabaseClient<Database>,
+  buildingId?: string
+) {
+  try {
+    const { data: tenancies } = await (supabase.from('tenancies') as any)
+      .select(`
+        id,
+        beds (
+          id,
+          deleted_at,
+          rooms (
+            id,
+            building_id,
+            deleted_at
+          )
+        )
+      `)
+      .is('deleted_at', null)
+      .is('check_out_date', null);
+
+    if (!tenancies || tenancies.length === 0) return;
+
+    const orphanedIds = tenancies
+      .filter((t: any) => {
+        if (buildingId && t.beds?.rooms?.building_id !== buildingId) return false;
+        const isBedDeleted = !t.beds || t.beds.deleted_at != null;
+        const isRoomDeleted = !t.beds?.rooms || t.beds.rooms.deleted_at != null;
+        return isBedDeleted || isRoomDeleted;
+      })
+      .map((t: any) => t.id);
+
+    if (orphanedIds.length > 0) {
+      await supabase
+        .from('tenancies')
+        .update({ check_out_date: new Date().toISOString().split('T')[0] })
+        .in('id', orphanedIds);
+    }
+  } catch (err) {
+    console.error('Error cleaning up orphaned tenancies:', err);
+  }
+}
+

@@ -32,6 +32,7 @@ import { RecordGeneralPaymentModal } from '@/components/payments/record-general-
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
 import { formatDate } from '@/lib/utils/dates';
+import { cleanupOrphanedTenancies } from '@/lib/services/inventory-service';
 
 interface RoomWithBedsData {
   id: string;
@@ -112,6 +113,9 @@ export default function DashboardPage() {
 
     setIsLoading(true);
     try {
+      // 0. Clean up any orphaned tenancies from deleted rooms/beds
+      await cleanupOrphanedTenancies(supabase, activeBuildingId);
+
       // 1. Fetch Rooms & Beds for active building
       const { data: roomsData } = await supabase
         .from('rooms')
