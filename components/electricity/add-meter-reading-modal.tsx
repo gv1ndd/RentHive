@@ -53,24 +53,34 @@ export function AddMeterReadingModal({
       setReadingDate(formatDate(new Date()));
       setError(null);
 
-      // Fetch currently active occupants in this room
+      // Fetch currently active occupants strictly in this room
       const fetchOccupants = async () => {
+        const { data: roomBeds } = await supabase
+          .from('beds')
+          .select('id, bed_label')
+          .eq('room_id', meter.room_id)
+          .is('deleted_at', null);
+
+        const roomBedIds = (roomBeds || []).map((b) => b.id);
+        const bedLabelMap = new Map((roomBeds || []).map((b) => [b.id, b.bed_label]));
+
+        if (roomBedIds.length === 0) {
+          setActiveOccupants([]);
+          return;
+        }
+
         const { data } = await (supabase.from('tenancies') as any)
           .select(`
             id,
+            bed_id,
             check_in_date,
             check_out_date,
-            beds (
-              id,
-              room_id,
-              bed_label
-            ),
             tenants (
               name,
               deleted_at
             )
           `)
-          .eq('beds.room_id', meter.room_id)
+          .in('bed_id', roomBedIds)
           .is('deleted_at', null)
           .is('check_out_date', null);
 
@@ -79,7 +89,7 @@ export function AddMeterReadingModal({
           .map((t: any) => ({
             tenancyId: t.id,
             tenantName: t.tenants?.name || 'Occupant',
-            bedLabel: t.beds?.bed_label || 'Bed',
+            bedLabel: bedLabelMap.get(t.bed_id) || 'Bed',
           }));
 
         setActiveOccupants(list);

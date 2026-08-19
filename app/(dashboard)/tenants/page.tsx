@@ -161,9 +161,12 @@ export default function TenantsPage() {
 
         if (!t.check_out_date) {
           tenantsMap[tenantObj.id].activeTenancy = t;
-          tenantsMap[tenantObj.id].pendingBalance = calc.pendingBalance;
+          tenantsMap[tenantObj.id].pendingBalance += calc.pendingBalance;
         } else {
           tenantsMap[tenantObj.id].pastTenancies.push(t);
+          if (calc.pendingBalance > 0) {
+            tenantsMap[tenantObj.id].pendingBalance += calc.pendingBalance;
+          }
         }
       }
 

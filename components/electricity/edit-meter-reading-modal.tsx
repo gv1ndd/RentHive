@@ -73,6 +73,29 @@ export function EditMeterReadingModal({
 
       if (updateError) throw updateError;
 
+      // Maintain contiguous meter chain: update subsequent reading's previous reading if exists
+      const { data: nextReadings } = await supabase
+        .from('meter_readings')
+        .select('*')
+        .eq('meter_id', reading.meter_id)
+        .gt('reading_date', readingDate)
+        .is('deleted_at', null)
+        .order('reading_date', { ascending: true })
+        .limit(1);
+
+      if (nextReadings && nextReadings.length > 0) {
+        const nextR = nextReadings[0];
+        const nextConsumed = Math.max(0, Number(nextR.current_reading) - c);
+        const nextAmount = Math.round(nextConsumed * r);
+        await supabase
+          .from('meter_readings')
+          .update({
+            previous_reading: c,
+            amount_due: nextAmount,
+          })
+          .eq('id', nextR.id);
+      }
+
       onSuccess();
       onClose();
     } catch (err: unknown) {

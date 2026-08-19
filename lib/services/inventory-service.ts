@@ -61,7 +61,16 @@ export async function restoreBuilding(
   supabase: SupabaseClient<Database>,
   buildingId: string
 ) {
-  // 1. Restore building
+  // 1. Fetch building deletion timestamp before clearing
+  const { data: bData } = await supabase
+    .from('buildings')
+    .select('deleted_at')
+    .eq('id', buildingId)
+    .single();
+
+  const bTime = bData?.deleted_at ? new Date(bData.deleted_at).getTime() : 0;
+
+  // 2. Restore building
   const { error: bErr } = await supabase
     .from('buildings')
     .update({ deleted_at: null })
@@ -69,13 +78,20 @@ export async function restoreBuilding(
 
   if (bErr) throw bErr;
 
-  // 2. Restore rooms and beds under this building
+  // 3. Restore rooms and beds under this building that were deleted alongside the building
   const { data: rooms } = await supabase
     .from('rooms')
-    .select('id')
+    .select('id, deleted_at')
     .eq('building_id', buildingId);
 
-  const roomIds = (rooms || []).map((r) => r.id);
+  const roomsToRestore = (rooms || []).filter((r) => {
+    if (!r.deleted_at) return false;
+    if (!bTime) return true;
+    const rTime = new Date(r.deleted_at).getTime();
+    return Math.abs(rTime - bTime) < 120000; // Deleted within 2 minutes of building
+  });
+
+  const roomIds = roomsToRestore.map((r) => r.id);
 
   if (roomIds.length > 0) {
     await supabase.from('rooms').update({ deleted_at: null }).in('id', roomIds);
@@ -99,6 +115,14 @@ export async function softDeleteBed(
     .update({ check_out_date: checkoutDate })
     .eq('bed_id', bedId)
     .is('check_out_date', null)
+    .is('deleted_at', null);
+
+  // 1b. Unassign bed from pending advance bookings to avoid dangling bed references
+  await supabase
+    .from('advance_bookings')
+    .update({ bed_id: null })
+    .eq('bed_id', bedId)
+    .eq('status', 'pending')
     .is('deleted_at', null);
 
   // 2. Soft-delete bed
@@ -136,6 +160,14 @@ export async function softDeleteRoom(
       .update({ check_out_date: checkoutDate })
       .in('bed_id', bedIds)
       .is('check_out_date', null)
+      .is('deleted_at', null);
+
+    // 2b. Unassign pending advance bookings from deleted beds/room
+    await supabase
+      .from('advance_bookings')
+      .update({ bed_id: null, room_id: null })
+      .in('bed_id', bedIds)
+      .eq('status', 'pending')
       .is('deleted_at', null);
 
     // 3. Soft-delete attached beds

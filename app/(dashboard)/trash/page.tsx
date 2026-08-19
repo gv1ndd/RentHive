@@ -50,6 +50,7 @@ export default function TrashPage() {
   const [purgingItem, setPurgingItem] = useState<TrashItemRecord | null>(null);
   const [isPurgingAll, setIsPurgingAll] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -184,16 +185,23 @@ export default function TrashPage() {
   const handlePermanentDelete = async () => {
     if (!purgingItem) return;
     setIsActionLoading(true);
+    setActionError(null);
     try {
       const { error } = await (supabase.from(purgingItem.category as any) as any)
         .delete()
         .eq('id', purgingItem.id);
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503' || error.message.includes('foreign key')) {
+          throw new Error(`Cannot permanently delete this ${purgingItem.category.slice(0, -1)} because active historical records (payments, notes, or readings) still reference it.`);
+        }
+        throw error;
+      }
       setPurgingItem(null);
       await loadTrash();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error permanently deleting item:', e);
+      setActionError(e.message || 'Failed to permanently delete item.');
     } finally {
       setIsActionLoading(false);
     }
@@ -202,6 +210,7 @@ export default function TrashPage() {
   // 3. Empty Entire Active Category Trash
   const handleEmptyCategoryTrash = async () => {
     setIsActionLoading(true);
+    setActionError(null);
     try {
       const ids = items.map((i) => i.id);
       if (ids.length > 0) {
@@ -209,12 +218,18 @@ export default function TrashPage() {
           .delete()
           .in('id', ids);
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23503' || error.message.includes('foreign key')) {
+            throw new Error(`Some items could not be deleted because active records (payments or readings) reference them.`);
+          }
+          throw error;
+        }
       }
       setIsPurgingAll(false);
       await loadTrash();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error emptying category trash:', e);
+      setActionError(e.message || 'Failed to empty category trash.');
     } finally {
       setIsActionLoading(false);
     }
@@ -251,6 +266,15 @@ export default function TrashPage() {
           </Button>
         )}
       </div>
+
+      {actionError && (
+        <div className="p-3.5 rounded-2xl bg-status-pending/15 border border-status-pending/30 text-status-pending text-xs font-medium flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-xs underline ml-2 cursor-pointer font-bold">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Category Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-border-subtle">

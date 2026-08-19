@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Send } from 'lucide-react';
+import { Copy, Check, Send, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/currency';
 
 interface WhatsAppRentScriptModalProps {
@@ -110,6 +110,13 @@ export function WhatsAppRentScriptModal({
       description={`Generate a formatted WhatsApp rent script for ${tenantName}.`}
     >
       <div className="space-y-4 pt-2">
+        {!tenantPhone && (
+          <div className="p-3 rounded-xl bg-status-reserved/15 border border-status-reserved/30 text-xs flex items-center gap-2 text-foreground">
+            <AlertCircle className="w-4 h-4 text-status-reserved shrink-0" />
+            <span>No phone on file. WhatsApp will open with pre-filled text so you can select the recipient.</span>
+          </div>
+        )}
+
         {/* Breakdown Inputs */}
         <div className="grid grid-cols-2 gap-3">
           <Input

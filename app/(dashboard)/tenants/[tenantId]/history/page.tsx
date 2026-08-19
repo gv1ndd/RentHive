@@ -147,41 +147,65 @@ export default function TenantHistoryPage({
 
       setNotes((notesData || []) as TenantNote[]);
 
-      // 5. Calculate pending balance across tenancies
-      const activeTenancy = allTenancies.find((t) => !t.check_out_date);
+      // 5. Calculate pending balance across all tenancies (both active and past/ex-tenants)
+      let cumCharged = 0;
+      let cumPaid = 0;
+      let cumPending = 0;
 
-      if (activeTenancy) {
-        // Fetch electricity readings for active room
-        const roomId = activeTenancy.beds?.rooms?.id;
-        let utils: any[] = [];
-        if (roomId) {
-          const { data: readings } = await supabase
-            .from('meter_readings')
-            .select('*')
-            .is('deleted_at', null);
+      const roomIds = Array.from(new Set(allTenancies.map((t) => t.beds?.rooms?.id).filter(Boolean))) as string[];
+      let utilityBillsByRoom: Record<string, any[]> = {};
 
-          const utilitySplit = splitUtilityBillsByTenancy({
-            tenancyRows: [{ id: activeTenancy.id, tenant_id: tenantId, check_in_date: activeTenancy.check_in_date, room_id: roomId }],
-            utilityBillsByRoom: { [roomId]: (readings || []) as any[] },
-          });
+      if (roomIds.length > 0) {
+        const { data: metersData } = await (supabase.from('meters') as any)
+          .select(`
+            room_id,
+            meter_readings (
+              id,
+              amount_due,
+              reading_date,
+              deleted_at
+            )
+          `)
+          .in('room_id', roomIds);
 
-          utils = utilitySplit[activeTenancy.id] || [];
+        for (const m of (metersData || []) as any[]) {
+          utilityBillsByRoom[m.room_id] = (m.meter_readings || []).filter((r: any) => !r.deleted_at);
         }
+      }
+
+      const utilitySplit = splitUtilityBillsByTenancy({
+        tenancyRows: allTenancies.map((t) => ({
+          id: t.id,
+          tenant_id: tenantId,
+          check_in_date: t.check_in_date,
+          check_out_date: t.check_out_date,
+          room_id: t.beds?.rooms?.id,
+        })),
+        utilityBillsByRoom,
+      });
+
+      for (const t of allTenancies) {
+        const tPayments = allPayments.filter((p) => p.tenancy_id === t.id);
+        const tUtils = utilitySplit[t.id] || [];
 
         const calc = calculatePendingRent({
-          rate: Number(activeTenancy.rate),
-          checkInDate: activeTenancy.check_in_date,
-          checkOutDate: activeTenancy.check_out_date,
-          dueDay: activeTenancy.due_day || 1,
-          payments: allPayments.filter((p) => p.tenancy_id === activeTenancy.id),
+          rate: Number(t.rate),
+          checkInDate: t.check_in_date,
+          checkOutDate: t.check_out_date,
+          dueDay: t.due_day || 1,
+          payments: tPayments,
           asOfDate: new Date(),
-          utilityBills: utils,
+          utilityBills: tUtils,
         });
 
-        setPendingBalance(calc.pendingBalance);
-        setTotalCharged(calc.totalCharged);
-        setTotalPaid(calc.totalPaid);
+        cumCharged += calc.totalCharged;
+        cumPaid += calc.totalPaid;
+        cumPending += calc.pendingBalance;
       }
+
+      setPendingBalance(cumPending);
+      setTotalCharged(cumCharged);
+      setTotalPaid(cumPaid);
     } catch (e) {
       console.error('Error loading tenant hub:', e);
     } finally {

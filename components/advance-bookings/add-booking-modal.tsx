@@ -23,6 +23,13 @@ interface RoomOption {
     bed_label: string;
     default_rate: number;
     deleted_at: string | null;
+    tenancies?: Array<{
+      id: string;
+      check_out_date: string | null;
+      deleted_at: string | null;
+      expected_move_out_date: string | null;
+      notice_given_date: string | null;
+    }>;
   }>;
 }
 
@@ -56,7 +63,14 @@ export function AddBookingModal({
               id,
               bed_label,
               default_rate,
-              deleted_at
+              deleted_at,
+              tenancies (
+                id,
+                check_out_date,
+                deleted_at,
+                expected_move_out_date,
+                notice_given_date
+              )
             )
           `)
           .eq('building_id', buildingId)
@@ -200,11 +214,22 @@ export function AddBookingModal({
             disabled={!selectedRoomId || activeBeds.length === 0}
           >
             <option value="">No Bed Assigned</option>
-            {activeBeds.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.bed_label}
-              </option>
-            ))}
+            {activeBeds.map((b) => {
+              const activeTenancy = (b.tenancies || []).find((t) => !t.check_out_date && !t.deleted_at);
+              let statusLabel = 'Vacant';
+              if (activeTenancy) {
+                if (activeTenancy.expected_move_out_date || activeTenancy.notice_given_date) {
+                  statusLabel = 'Notice Given';
+                } else {
+                  statusLabel = 'Occupied';
+                }
+              }
+              return (
+                <option key={b.id} value={b.id}>
+                  {b.bed_label} (₹{Number(b.default_rate)}/mo · {statusLabel})
+                </option>
+              );
+            })}
           </Select>
         </div>
 

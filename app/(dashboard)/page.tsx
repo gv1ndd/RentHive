@@ -31,7 +31,7 @@ import { ConvertBookingModal } from '@/components/advance-bookings/convert-booki
 import { RecordGeneralPaymentModal } from '@/components/payments/record-general-payment-modal';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
-import { formatDate } from '@/lib/utils/dates';
+import { formatDate, parseLocalDate } from '@/lib/utils/dates';
 import { cleanupOrphanedTenancies } from '@/lib/services/inventory-service';
 
 interface RoomWithBedsData {
@@ -244,7 +244,7 @@ export default function DashboardPage() {
       let totalReceivedThisMonth = 0;
       let totalElectricityThisMonth = 0;
       for (const p of payments) {
-        const pDate = new Date(p.date);
+        const pDate = parseLocalDate(p.date);
         if (pDate >= firstDayOfMonth) {
           totalReceivedThisMonth += Number(p.amount) || 0;
           if (p.type === 'electricity') {

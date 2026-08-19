@@ -178,9 +178,9 @@ export default function DominantSearchPage() {
     const matchRoom = item.room.room_number.toLowerCase().includes(q);
     const matchFloor = `floor ${item.room.floor_number}`.includes(q);
     const matchBuilding = item.building.name.toLowerCase().includes(q);
-    const matchTenant = item.activeTenancy?.tenants?.name.toLowerCase().includes(q);
-    const matchPhone = item.activeTenancy?.tenants?.phone?.includes(q);
-    const matchBooking = item.pendingBooking?.tenant_name.toLowerCase().includes(q);
+    const matchTenant = Boolean(item.activeTenancy?.tenants?.name?.toLowerCase().includes(q));
+    const matchPhone = Boolean(item.activeTenancy?.tenants?.phone?.includes(q));
+    const matchBooking = Boolean(item.pendingBooking?.tenant_name?.toLowerCase().includes(q));
 
     return matchBed || matchRoom || matchFloor || matchBuilding || matchTenant || matchPhone || matchBooking;
   });

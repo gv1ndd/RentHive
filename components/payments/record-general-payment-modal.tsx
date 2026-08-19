@@ -104,11 +104,26 @@ export function RecordGeneralPaymentModal({
     }
   }, [isOpen, buildingId, supabase]);
 
-  const handleTenancyChange = (id: string) => {
+  const handleTenancyChange = async (id: string) => {
     setSelectedTenancyId(id);
     const chosen = tenancies.find((t) => t.id === id);
-    if (chosen && (type === 'rent' || type === 'rent_and_electricity')) {
-      setAmount(String(chosen.rate));
+    if (chosen) {
+      if (type === 'rent') {
+        setAmount(String(chosen.rate));
+      } else if (type === 'rent_and_electricity') {
+        try {
+          const { data: meters } = await supabase
+            .from('meters')
+            .select('id, meter_readings(amount_due, deleted_at)')
+            .eq('room_id', chosen.roomId);
+
+          const rawReadings = ((meters || []) as any[]).flatMap((m) => m.meter_readings || []).filter((r: any) => !r.deleted_at);
+          const totalUtilCharged = rawReadings.reduce((sum: number, r: any) => sum + Number(r.amount_due || 0), 0);
+          setAmount(String(chosen.rate + totalUtilCharged));
+        } catch {
+          setAmount(String(chosen.rate));
+        }
+      }
     }
   };
 

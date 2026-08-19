@@ -83,12 +83,29 @@ export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModa
           value={floorNumber}
           onChange={(e) => setFloorNumber(e.target.value)}
           options={[
+            { value: -2, label: 'Basement 2 (-2)' },
+            { value: -1, label: 'Basement 1 (-1)' },
             { value: 0, label: 'Ground Floor (0)' },
             { value: 1, label: '1st Floor' },
             { value: 2, label: '2nd Floor' },
             { value: 3, label: '3rd Floor' },
             { value: 4, label: '4th Floor' },
             { value: 5, label: '5th Floor' },
+            { value: 6, label: '6th Floor' },
+            { value: 7, label: '7th Floor' },
+            { value: 8, label: '8th Floor' },
+            { value: 9, label: '9th Floor' },
+            { value: 10, label: '10th Floor' },
+            { value: 11, label: '11th Floor' },
+            { value: 12, label: '12th Floor' },
+            { value: 13, label: '13th Floor' },
+            { value: 14, label: '14th Floor' },
+            { value: 15, label: '15th Floor' },
+            { value: 16, label: '16th Floor' },
+            { value: 17, label: '17th Floor' },
+            { value: 18, label: '18th Floor' },
+            { value: 19, label: '19th Floor' },
+            { value: 20, label: '20th Floor' },
           ]}
         />
 

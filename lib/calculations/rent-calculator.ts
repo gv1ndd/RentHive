@@ -27,9 +27,9 @@ export function calculatePendingRent({
   const checkIn = parseLocalDate(checkInDate);
   const effectiveEnd = checkOutDate ? parseLocalDate(checkOutDate) : parseLocalDate(asOfDate);
 
-  // Total paid: sum of active payments with type 'rent' or 'electricity'
+  // Total paid: sum of all active, non-deleted payments (rent, electricity, maintenance, penalty, utility)
   const totalPaid = payments
-    .filter((p) => !p.deleted_at && (p.type === 'rent' || p.type === 'electricity'))
+    .filter((p) => !p.deleted_at)
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
   let currentYear = checkIn.getFullYear();
@@ -64,15 +64,24 @@ export function calculatePendingRent({
       break;
     }
 
-    if (isFirstCycle) {
-      const msPerDay = 1000 * 60 * 60 * 24;
-      const totalDaysInCycle = Math.round((nextCycleStart.getTime() - cycleStart.getTime()) / msPerDay);
-      const daysOccupied = Math.round((nextCycleStart.getTime() - checkIn.getTime()) / msPerDay);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const totalDaysInCycle = Math.max(1, Math.round((nextCycleStart.getTime() - cycleStart.getTime()) / msPerDay));
+    const dailyRate = Math.round((rate / totalDaysInCycle) * 100) / 100;
 
-      const dailyRate = Math.round((rate / Math.max(1, totalDaysInCycle)) * 100) / 100;
-      const prorated = Math.round(dailyRate * daysOccupied);
-      totalCharged += prorated;
+    if (isFirstCycle && checkOutDate && effectiveEnd.getTime() < nextCycleStart.getTime()) {
+      // Stayed only within the first cycle
+      const daysOccupied = Math.max(1, Math.round((effectiveEnd.getTime() - checkIn.getTime()) / msPerDay));
+      totalCharged += Math.round(dailyRate * daysOccupied);
+    } else if (isFirstCycle) {
+      // First cycle entry proration
+      const daysOccupied = Math.max(1, Math.round((nextCycleStart.getTime() - checkIn.getTime()) / msPerDay));
+      totalCharged += Math.round(dailyRate * daysOccupied);
+    } else if (checkOutDate && effectiveEnd.getTime() < nextCycleStart.getTime()) {
+      // Departure mid-cycle proration
+      const daysOccupied = Math.max(1, Math.round((effectiveEnd.getTime() - cycleStart.getTime()) / msPerDay));
+      totalCharged += Math.round(dailyRate * daysOccupied);
     } else {
+      // Full cycle charge
       totalCharged += rate;
     }
 
