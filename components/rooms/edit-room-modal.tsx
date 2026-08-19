@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { Room } from '@/types/domain';
+import { parseRoomDisplay, formatRoomNumber } from '@/lib/utils/room-helper';
 
 interface EditRoomModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface EditRoomModalProps {
 
 export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModalProps) {
   const [roomNumber, setRoomNumber] = useState('');
+  const [isBalcony, setIsBalcony] = useState(false);
   const [floorNumber, setFloorNumber] = useState('0');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,9 @@ export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModa
 
   useEffect(() => {
     if (room) {
-      setRoomNumber(room.room_number);
+      const parsed = parseRoomDisplay(room.room_number);
+      setRoomNumber(parsed.cleanRoomNumber);
+      setIsBalcony(parsed.isBalcony);
       setFloorNumber(String(room.floor_number));
       setError(null);
     }
@@ -41,10 +45,12 @@ export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModa
     setError(null);
 
     try {
+      const fullRoomNumber = formatRoomNumber(roomNumber, isBalcony);
+
       const { error: updateError } = await supabase
         .from('rooms')
         .update({
-          room_number: roomNumber.trim(),
+          room_number: fullRoomNumber,
           floor_number: parseInt(floorNumber, 10) || 0,
         })
         .eq('id', room.id);
@@ -106,6 +112,16 @@ export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModa
             { value: 18, label: '18th Floor' },
             { value: 19, label: '19th Floor' },
             { value: 20, label: '20th Floor' },
+          ]}
+        />
+
+        <Select
+          label="Room Type / Feature"
+          value={isBalcony ? 'balcony' : 'standard'}
+          onChange={(e) => setIsBalcony(e.target.value === 'balcony')}
+          options={[
+            { value: 'standard', label: 'Standard Room (Non-Balcony)' },
+            { value: 'balcony', label: '🌿 Balcony Room (Premium View / Higher Rate)' },
           ]}
         />
 

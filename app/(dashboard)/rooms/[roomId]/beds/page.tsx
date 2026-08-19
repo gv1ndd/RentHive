@@ -15,6 +15,7 @@ import { AssignTenantModal } from '@/components/beds/assign-tenant-modal';
 import { ActiveTenancyModal } from '@/components/beds/active-tenancy-modal';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import {
   ArrowLeft,
   Plus,
@@ -209,11 +210,18 @@ export default function RoomBedsPage({
               <span>{building?.name}</span>
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Room {room?.room_number}</span>
+            <span className="text-foreground font-medium">Room {parseRoomDisplay(room?.room_number).cleanRoomNumber}</span>
           </div>
-          <h1 className="text-xl font-bold text-foreground">
-            Room {room?.room_number} — Bed Matrix
-          </h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-foreground">
+              Room {parseRoomDisplay(room?.room_number).cleanRoomNumber} — Bed Matrix
+            </h1>
+            {parseRoomDisplay(room?.room_number).isBalcony && (
+              <Badge variant="primary" size="sm">
+                <span>🌿 Balcony</span>
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted">
             Floor {room?.floor_number} · {beds.length} Total Beds
           </p>

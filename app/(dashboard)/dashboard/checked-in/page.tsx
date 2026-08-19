@@ -12,6 +12,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { splitUtilityBillsByTenancy } from '@/lib/calculations/utility-splitter';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import {
   ArrowLeft,
   Users,
@@ -214,11 +215,16 @@ export default function CheckedInTenantsPage() {
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-surface-container/60 border border-border-subtle text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-foreground">
-                      Room {roomNumber} — {bedLabel}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                      <span>Room {parseRoomDisplay(roomNumber).cleanRoomNumber} — {bedLabel}</span>
+                      {parseRoomDisplay(roomNumber).isBalcony && (
+                        <Badge variant="primary" size="sm">
+                          <span>🌿 Balcony</span>
+                        </Badge>
+                      )}
                     </span>
-                    <span className="font-bold text-primary">
+                    <span className="font-bold text-primary shrink-0">
                       {formatCurrency(Number(tenancy.rate))}/mo
                     </span>
                   </div>

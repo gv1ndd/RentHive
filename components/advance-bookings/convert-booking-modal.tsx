@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { AdvanceBooking, Tenancy, Tenant } from '@/types/domain';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
 import { CheckCircle2, AlertCircle, Calculator, CreditCard, X, UserX } from 'lucide-react';
@@ -408,10 +409,13 @@ export function ConvertBookingModal({
             label="Select Room"
             value={selectedRoomId}
             onChange={(e) => handleRoomChange(e.target.value)}
-            options={rooms.map((r) => ({
-              value: r.id,
-              label: `Room ${r.room_number}`,
-            }))}
+            options={rooms.map((r) => {
+              const parsed = parseRoomDisplay(r.room_number);
+              return {
+                value: r.id,
+                label: `Room ${parsed.cleanRoomNumber}${parsed.isBalcony ? ' 🌿 (Balcony)' : ''}`,
+              };
+            })}
             required
           />
 

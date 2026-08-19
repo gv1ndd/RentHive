@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils/dates';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 
 interface AddBookingModalProps {
   isOpen: boolean;
@@ -200,11 +201,14 @@ export function AddBookingModal({
             }}
           >
             <option value="">No Room Assigned (General Booking)</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                Room {r.room_number}
-              </option>
-            ))}
+            {rooms.map((r) => {
+              const parsed = parseRoomDisplay(r.room_number);
+              return (
+                <option key={r.id} value={r.id}>
+                  Room {parsed.cleanRoomNumber} {parsed.isBalcony ? '🌿 (Balcony)' : ''}
+                </option>
+              );
+            })}
           </Select>
 
           <Select

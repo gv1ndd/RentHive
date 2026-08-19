@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AssignTenantModal } from '@/components/beds/assign-tenant-modal';
 import { formatCurrency } from '@/lib/utils/currency';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import {
   ArrowLeft,
   BedDouble,
@@ -174,9 +175,16 @@ export default function EmptyBedsPage() {
                       <BedDouble className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold text-foreground">
-                        Room {bed.room.room_number} — {bed.bed_label}
-                      </h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold text-foreground">
+                          Room {parseRoomDisplay(bed.room.room_number).cleanRoomNumber} — {bed.bed_label}
+                        </h2>
+                        {parseRoomDisplay(bed.room.room_number).isBalcony && (
+                          <Badge variant="primary" size="sm">
+                            <span>🌿 Balcony</span>
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted">
                         Floor {bed.room.floor_number}
                       </p>

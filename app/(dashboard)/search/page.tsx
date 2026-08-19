@@ -13,6 +13,7 @@ import { AssignTenantModal } from '@/components/beds/assign-tenant-modal';
 import { ActiveTenancyModal } from '@/components/beds/active-tenancy-modal';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import {
   Search,
   BedDouble,
@@ -174,15 +175,17 @@ export default function DominantSearchPage() {
     if (!searchQuery.trim()) return true;
 
     const q = searchQuery.toLowerCase();
+    const parsedRoom = parseRoomDisplay(item.room.room_number);
     const matchBed = item.bed_label.toLowerCase().includes(q);
-    const matchRoom = item.room.room_number.toLowerCase().includes(q);
+    const matchRoom = item.room.room_number.toLowerCase().includes(q) || parsedRoom.cleanRoomNumber.toLowerCase().includes(q);
+    const matchBalcony = q.includes('balcony') && (parsedRoom.isBalcony || q.includes('non') === !parsedRoom.isBalcony);
     const matchFloor = `floor ${item.room.floor_number}`.includes(q);
     const matchBuilding = item.building.name.toLowerCase().includes(q);
     const matchTenant = Boolean(item.activeTenancy?.tenants?.name?.toLowerCase().includes(q));
     const matchPhone = Boolean(item.activeTenancy?.tenants?.phone?.includes(q));
     const matchBooking = Boolean(item.pendingBooking?.tenant_name?.toLowerCase().includes(q));
 
-    return matchBed || matchRoom || matchFloor || matchBuilding || matchTenant || matchPhone || matchBooking;
+    return matchBed || matchRoom || matchBalcony || matchFloor || matchBuilding || matchTenant || matchPhone || matchBooking;
   });
 
   const handleBedAction = (item: SearchBedResult) => {
@@ -308,10 +311,15 @@ export default function DominantSearchPage() {
                 <div className="space-y-2.5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-foreground text-base">
-                          Room {item.room.room_number} — {item.bed_label}
+                          Room {parseRoomDisplay(item.room.room_number).cleanRoomNumber} — {item.bed_label}
                         </span>
+                        {parseRoomDisplay(item.room.room_number).isBalcony && (
+                          <Badge variant="primary" size="sm">
+                            <span>🌿 Balcony</span>
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted mt-0.5">
                         {item.building.name} · Floor {item.room.floor_number}

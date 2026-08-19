@@ -16,6 +16,7 @@ import {
   BedDouble,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/currency';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import { Building } from '@/types/domain';
 
 interface AvailableBedOption {
@@ -344,11 +345,14 @@ export default function TenantOnboardingPage({
                     className="w-full bg-surface-container border border-border-subtle focus:border-primary rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">Let Property Manager Assign Best Bed</option>
-                    {availableBeds.map((b) => (
-                      <option key={b.bedId} value={b.bedId}>
-                        Room {b.roomNumber} ({b.bedLabel}) — Floor {b.floorNumber} — {formatCurrency(b.rate)}/mo
-                      </option>
-                    ))}
+                    {availableBeds.map((b) => {
+                      const parsed = parseRoomDisplay(b.roomNumber);
+                      return (
+                        <option key={b.bedId} value={b.bedId}>
+                          Room {parsed.cleanRoomNumber} {parsed.isBalcony ? '🌿 (Balcony)' : ''} ({b.bedLabel}) — Floor {b.floorNumber} — {formatCurrency(b.rate)}/mo
+                        </option>
+                      );
+                    })}
                   </select>
                 )}
               </div>

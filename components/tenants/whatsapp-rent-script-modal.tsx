@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, Send, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/currency';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 
 interface WhatsAppRentScriptModalProps {
   isOpen: boolean;
@@ -56,7 +57,11 @@ export function WhatsAppRentScriptModal({
     script += `Hi ${tenantName}, here is your rent and utility breakdown:\n\n`;
 
     if (buildingName || roomNumber) {
-      script += `🏠 *Property:* ${buildingName || ''} ${roomNumber ? `(Room ${roomNumber}${bedLabel ? ` - ${bedLabel}` : ''})` : ''}\n\n`;
+      const parsedRoom = parseRoomDisplay(roomNumber);
+      const roomTag = parsedRoom.isBalcony
+        ? `Room ${parsedRoom.cleanRoomNumber} (Balcony)`
+        : `Room ${parsedRoom.cleanRoomNumber}`;
+      script += `🏠 *Property:* ${buildingName || ''} ${roomNumber ? `(${roomTag}${bedLabel ? ` - ${bedLabel}` : ''})` : ''}\n\n`;
     }
 
     script += `• *Rent:* ₹${Number(rent || 0).toLocaleString('en-IN')}\n`;

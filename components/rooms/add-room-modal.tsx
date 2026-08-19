@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { formatRoomNumber } from '@/lib/utils/room-helper';
 
 interface AddRoomModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface AddRoomModalProps {
 
 export function AddRoomModal({ isOpen, onClose, buildingId, onSuccess }: AddRoomModalProps) {
   const [roomNumber, setRoomNumber] = useState('');
+  const [isBalcony, setIsBalcony] = useState(false);
   const [floorNumber, setFloorNumber] = useState('0');
   const [bedCount, setBedCount] = useState('2');
   const [defaultRate, setDefaultRate] = useState('6000');
@@ -35,12 +37,14 @@ export function AddRoomModal({ isOpen, onClose, buildingId, onSuccess }: AddRoom
     setError(null);
 
     try {
-      // 1. Insert Room
+      // 1. Insert Room (with balcony tag if selected)
+      const fullRoomNumber = formatRoomNumber(roomNumber, isBalcony);
+
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert({
           building_id: buildingId,
-          room_number: roomNumber.trim(),
+          room_number: fullRoomNumber,
           floor_number: parseInt(floorNumber, 10) || 0,
         })
         .select('*')
@@ -134,6 +138,15 @@ export function AddRoomModal({ isOpen, onClose, buildingId, onSuccess }: AddRoom
               { value: 18, label: '18th Floor' },
               { value: 19, label: '19th Floor' },
               { value: 20, label: '20th Floor' },
+            ]}
+          />
+          <Select
+            label="Room Type / Feature"
+            value={isBalcony ? 'balcony' : 'standard'}
+            onChange={(e) => setIsBalcony(e.target.value === 'balcony')}
+            options={[
+              { value: 'standard', label: 'Standard Room (Non-Balcony)' },
+              { value: 'balcony', label: '🌿 Balcony Room (Premium View / Higher Rate)' },
             ]}
           />
         </div>

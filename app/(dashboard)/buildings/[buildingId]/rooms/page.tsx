@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AddRoomModal } from '@/components/rooms/add-room-modal';
 import { EditRoomModal } from '@/components/rooms/edit-room-modal';
+import { parseRoomDisplay } from '@/lib/utils/room-helper';
 import {
   ArrowLeft,
   Plus,
@@ -291,10 +292,15 @@ export default function BuildingRoomsPage({
                         <div className="space-y-3">
                           <div className="flex items-start justify-between">
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-base font-bold text-foreground">
-                                  Room {room.room_number}
+                                  Room {parseRoomDisplay(room.room_number).cleanRoomNumber}
                                 </h3>
+                                {parseRoomDisplay(room.room_number).isBalcony && (
+                                  <Badge variant="primary" size="sm">
+                                    <span>🌿 Balcony</span>
+                                  </Badge>
+                                )}
                                 {room.meter && (
                                   <Badge variant="neutral" size="sm">
                                     <Zap className="w-3 h-3 text-primary" />
