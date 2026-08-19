@@ -23,24 +23,24 @@
   }
 
   .dark {
-    --background: #0D0F0D;
-    --surface: #161A16;
-    --surface-container: #161C16;
-    --surface-highest: #1E2A1E;
-    --primary: #3DDC84;
-    --primary-container: #005229;
-    --on-primary-container: #98F5C4;
-    --foreground: #EAF5EC;
-    --muted: #9FB3A4;
-    --border: #4A5E4D;
-    --border-subtle: #2E3D2E;
+    --background: #121418;
+    --surface: #1C1F26;
+    --surface-container: #252933;
+    --surface-highest: #303644;
+    --primary: #A78BFA;
+    --primary-container: #4C1D95;
+    --on-primary-container: #EDE9FE;
+    --foreground: #F3F4F6;
+    --muted: #9CA3AF;
+    --border: #3D4454;
+    --border-subtle: #282D38;
 
-    /* Semantic Status Tokens (Brightness Adapted) */
-    --status-occupied: #82B1FF;
-    --status-vacant: #81C784;
+    /* Semantic Status Tokens (Brightness & Contrast Adapted) */
+    --status-occupied: #60A5FA;
+    --status-vacant: #34D399;
     --status-reserved: #2DD4BF;
-    --status-pending: #FF8A80;
-    --status-moving-out: #FFD54F;
+    --status-pending: #F87171;
+    --status-moving-out: #FBBF24;
   }
 }
 
