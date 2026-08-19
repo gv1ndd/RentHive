@@ -618,17 +618,22 @@ export default function DashboardPage() {
         {/* Upcoming Move-Outs Section */}
         <Card className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-foreground">Upcoming Move-Outs</h2>
+            <Link
+              href="/dashboard/checked-out?tab=upcoming"
+              className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
+            >
+              <h2 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">
+                Upcoming Move-Outs
+              </h2>
               <Badge variant="moving_out" size="sm">
                 {upcomingMoveOuts.length}
               </Badge>
-            </div>
+            </Link>
             <Link
-              href="/dashboard/checked-out"
+              href="/dashboard/checked-out?tab=upcoming"
               className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
             >
-              <span>View History</span>
+              <span>View All</span>
               <ArrowRight className="w-3 h-3" />
             </Link>
           </div>

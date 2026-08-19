@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -10,7 +10,8 @@ import { Bed, Tenant } from '@/types/domain';
 import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
 import { formatCurrency } from '@/lib/utils/currency';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
-import { Calculator } from 'lucide-react';
+import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
+import { Calculator, AlertCircle, UserX } from 'lucide-react';
 
 interface AssignTenantModalProps {
   isOpen: boolean;
@@ -35,15 +36,36 @@ export function AssignTenantModal({
   const [checkInDate, setCheckInDate] = useState(formatDate(new Date()));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Active occupant conflict state
+  const [activeOccupant, setActiveOccupant] = useState<any | null>(null);
+  const [forceCheckoutPendingDues, setForceCheckoutPendingDues] = useState<number>(0);
+  const [isForceCheckoutOpen, setIsForceCheckoutOpen] = useState(false);
+
   const supabase = createClient();
 
+  const checkBedOccupant = useCallback(async () => {
+    if (!bed) return;
+
+    const { data } = await supabase
+      .from('tenancies')
+      .select('*, tenants(*)')
+      .eq('bed_id', bed.id)
+      .is('check_out_date', null)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    setActiveOccupant(data || null);
+  }, [bed, supabase]);
+
   useEffect(() => {
-    if (bed) {
+    if (bed && isOpen) {
       setRate(String(bed.default_rate || 6000));
       setCheckInDate(formatDate(new Date()));
       setError(null);
+      checkBedOccupant();
     }
-  }, [bed]);
+  }, [bed, isOpen, checkBedOccupant]);
 
   useEffect(() => {
     if (isOpen && tab === 'existing') {
@@ -62,6 +84,32 @@ export function AssignTenantModal({
       fetchExisting();
     }
   }, [isOpen, tab, supabase]);
+
+  const handleInitiateForceCheckout = async () => {
+    if (!activeOccupant) return;
+    try {
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('tenancy_id', activeOccupant.id)
+        .is('deleted_at', null);
+
+      const result = calculatePendingRent({
+        rate: Number(activeOccupant.rate),
+        checkInDate: activeOccupant.check_in_date,
+        checkOutDate: activeOccupant.check_out_date,
+        dueDay: activeOccupant.due_day || 1,
+        payments: (paymentsData || []) as any[],
+        asOfDate: new Date(),
+      });
+
+      setForceCheckoutPendingDues(result.pendingBalance);
+      setIsForceCheckoutOpen(true);
+    } catch {
+      setForceCheckoutPendingDues(0);
+      setIsForceCheckoutOpen(true);
+    }
+  };
 
   // Live Proration Preview Calculation
   const prorationPreview = React.useMemo(() => {
@@ -112,7 +160,6 @@ export function AssignTenantModal({
         totalDaysInCycle,
         dailyRate,
         nextDueDate: nextCycleStart,
-        isFullCycle: daysOccupied === totalDaysInCycle,
       };
     } catch {
       return null;
@@ -122,6 +169,15 @@ export function AssignTenantModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bed) return;
+
+    if (activeOccupant) {
+      setError(
+        `This bed is currently occupied by ${
+          activeOccupant.tenants?.name || 'an active tenant'
+        }. Please force checkout the current occupant before assigning a new tenant.`
+      );
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -187,44 +243,81 @@ export function AssignTenantModal({
       title={`Check In Tenant — ${bed?.bed_label || 'Bed'}`}
       maxWidth="md"
     >
-      {/* Tab Switcher */}
-      <div className="flex p-1 bg-surface-highest/80 rounded-xl border border-border-subtle text-xs font-medium mb-4">
-        <button
-          type="button"
-          onClick={() => setTab('new')}
-          className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
-            tab === 'new'
-              ? 'bg-surface text-foreground font-semibold shadow-xs'
-              : 'text-muted hover:text-foreground'
-          }`}
-        >
-          New Tenant
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('existing')}
-          className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
-            tab === 'existing'
-              ? 'bg-surface text-foreground font-semibold shadow-xs'
-              : 'text-muted hover:text-foreground'
-          }`}
-        >
-          Existing Tenant
-        </button>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3 rounded-xl bg-status-pending/15 border border-status-pending/30 text-status-pending text-xs font-medium">
-            {error}
+          <div className="p-3 rounded-xl bg-status-pending/15 border border-status-pending/30 text-status-pending text-xs font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
+
+        {/* Active Occupant Conflict Banner */}
+        {activeOccupant && (
+          <div className="p-3.5 rounded-xl bg-status-moving-out/15 border border-status-moving-out/30 space-y-2.5 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-status-moving-out font-bold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Bed Conflict: Current Occupant Active</span>
+                </div>
+                <p className="text-muted leading-relaxed">
+                  <strong className="text-foreground">
+                    {activeOccupant.tenants?.name || 'Current occupant'}
+                  </strong>{' '}
+                  is currently occupying {bed?.bed_label}
+                  {activeOccupant.expected_move_out_date
+                    ? ` (scheduled move-out: ${formatDate(
+                        activeOccupant.expected_move_out_date
+                      )})`
+                    : ''}
+                  . You must check out the current occupant before checking in a new tenant.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={handleInitiateForceCheckout}
+                leftIcon={<UserX className="w-3.5 h-3.5" />}
+                className="shrink-0 w-full sm:w-auto"
+              >
+                Force Checkout Now
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Selection: New vs Existing */}
+        <div className="flex p-1 bg-surface-highest/80 rounded-xl border border-border-subtle text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setTab('new')}
+            className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+              tab === 'new'
+                ? 'bg-surface text-foreground shadow-xs'
+                : 'text-muted hover:text-foreground'
+            }`}
+          >
+            New Tenant
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('existing')}
+            className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+              tab === 'existing'
+                ? 'bg-surface text-foreground shadow-xs'
+                : 'text-muted hover:text-foreground'
+            }`}
+          >
+            Existing Tenant
+          </button>
+        </div>
 
         {tab === 'new' ? (
           <>
             <Input
-              label="Full Name"
-              placeholder="e.g. Rahul Sharma"
+              label="Tenant Full Name"
+              placeholder="e.g. John Doe"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -288,24 +381,25 @@ export function AssignTenantModal({
             <div className="flex items-center justify-between">
               <span className="font-semibold text-foreground flex items-center gap-1.5">
                 <Calculator className="w-3.5 h-3.5 text-primary" />
-                <span>Entry Period Proration</span>
+                <span>Proration Settlement Preview</span>
               </span>
               <span className="text-sm font-bold text-primary">
-                {formatCurrency(prorationPreview.grossRent)} Due at Check-in
+                {formatCurrency(prorationPreview.grossRent)} Due at Entry
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-muted pt-1 border-t border-border-subtle/50">
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-muted pt-1 border-t border-border-subtle/50">
               <div>
-                <span>Days in Entry Period:</span>
-                <span className="font-medium text-foreground ml-1">{prorationPreview.daysOccupied} of {prorationPreview.totalDaysInCycle} days</span>
+                <span>Days Occupied:</span>
+                <span className="font-medium text-foreground ml-1">
+                  {prorationPreview.daysOccupied} of {prorationPreview.totalDaysInCycle} days
+                </span>
               </div>
               <div>
-                <span>Daily Rate:</span>
-                <span className="font-medium text-foreground ml-1">₹{prorationPreview.dailyRate}/day</span>
-              </div>
-              <div>
-                <span>First Full Cycle:</span>
-                <span className="font-medium text-foreground ml-1">{formatDate(prorationPreview.nextDueDate)}</span>
+                <span>Effective Daily Rate:</span>
+                <span className="font-medium text-foreground ml-1">
+                  {formatCurrency(prorationPreview.dailyRate)}/day
+                </span>
               </div>
             </div>
           </div>
@@ -315,11 +409,34 @@ export function AssignTenantModal({
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" size="sm" isLoading={isLoading}>
-            Confirm Check-In
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            isLoading={isLoading}
+            disabled={Boolean(activeOccupant)}
+          >
+            Check In Tenant
           </Button>
         </div>
       </form>
+
+      {/* Force Checkout Modal */}
+      {isForceCheckoutOpen && activeOccupant && (
+        <CheckoutTenantModal
+          isOpen={isForceCheckoutOpen}
+          onClose={() => setIsForceCheckoutOpen(false)}
+          tenancy={activeOccupant}
+          tenantName={activeOccupant.tenants?.name || 'Current Occupant'}
+          roomInfo={`${bed?.bed_label || 'Bed'}`}
+          pendingBalance={forceCheckoutPendingDues}
+          onSuccess={async () => {
+            setIsForceCheckoutOpen(false);
+            await checkBedOccupant();
+            onSuccess();
+          }}
+        />
+      )}
     </Modal>
   );
 }

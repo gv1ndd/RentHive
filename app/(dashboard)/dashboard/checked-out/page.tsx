@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useActiveBuilding } from '@/lib/context/active-building-context';
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
@@ -18,6 +21,7 @@ import {
   UserX,
   Phone,
   ExternalLink,
+  Filter,
 } from 'lucide-react';
 import { Tenant, Tenancy } from '@/types/domain';
 
@@ -29,13 +33,27 @@ interface MoveOutRecord {
   isUpcoming: boolean;
 }
 
-export default function CheckedOutPage() {
+type DateFilterOption = 'current_month' | 'last_month' | 'custom' | 'all';
+
+function CheckedOutContent() {
   const { activeBuilding, activeBuildingId } = useActiveBuilding();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [records, setRecords] = useState<MoveOutRecord[]>([]);
   const [tab, setTab] = useState<'upcoming' | 'history'>('upcoming');
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>('current_month');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync tab with URL search parameter if present
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'upcoming' || tabParam === 'history') {
+      setTab(tabParam);
+    }
+  }, [searchParams]);
 
   const loadMoveOuts = useCallback(async () => {
     if (!activeBuildingId) {
@@ -99,9 +117,52 @@ export default function CheckedOutPage() {
     loadMoveOuts();
   }, [loadMoveOuts]);
 
-  const upcomingList = records.filter((r) => r.isUpcoming);
-  const historyList = records.filter((r) => !r.isUpcoming);
-  const activeList = tab === 'upcoming' ? upcomingList : historyList;
+  const upcomingList = useMemo(() => records.filter((r) => r.isUpcoming), [records]);
+  const historyList = useMemo(() => records.filter((r) => !r.isUpcoming), [records]);
+
+  // Filter checkout history by check_out_date
+  const filteredHistoryList = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+
+    // Current Month range
+    const currentMonthStart = formatDate(new Date(currentYear, currentMonth, 1));
+    const currentMonthEnd = formatDate(new Date(currentYear, currentMonth + 1, 0));
+
+    // Last Month range
+    const lastMonthStart = formatDate(new Date(currentYear, currentMonth - 1, 1));
+    const lastMonthEnd = formatDate(new Date(currentYear, currentMonth, 0));
+
+    return historyList
+      .filter((r) => {
+        const coDate = r.tenancy.check_out_date;
+        if (!coDate) return false;
+
+        if (dateFilter === 'current_month') {
+          return coDate >= currentMonthStart && coDate <= currentMonthEnd;
+        }
+        if (dateFilter === 'last_month') {
+          return coDate >= lastMonthStart && coDate <= lastMonthEnd;
+        }
+        if (dateFilter === 'custom') {
+          if (customStartDate && coDate < customStartDate) return false;
+          if (customEndDate && coDate > customEndDate) return false;
+          return true;
+        }
+        if (dateFilter === 'all') {
+          return true;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = a.tenancy.check_out_date || '';
+        const dateB = b.tenancy.check_out_date || '';
+        return dateB.localeCompare(dateA);
+      });
+  }, [historyList, dateFilter, customStartDate, customEndDate]);
+
+  const activeList = tab === 'upcoming' ? upcomingList : filteredHistoryList;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -146,9 +207,55 @@ export default function CheckedOutPage() {
           }`}
         >
           <Calendar className="w-3.5 h-3.5" />
-          <span>History ({historyList.length})</span>
+          <span>History ({filteredHistoryList.length})</span>
         </button>
       </div>
+
+      {/* Checkout History Date Range Filter */}
+      {tab === 'history' && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-primary" />
+              <span>Checkout Date Filter:</span>
+            </span>
+            <div className="w-48">
+              <Select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value as DateFilterOption)}
+                options={[
+                  { value: 'current_month', label: 'Current Month' },
+                  { value: 'last_month', label: 'Last Month' },
+                  { value: 'custom', label: 'Custom Date Range' },
+                  { value: 'all', label: 'All (till today)' },
+                ]}
+              />
+            </div>
+          </div>
+
+          {dateFilter === 'custom' && (
+            <div className="flex items-center gap-2 text-xs pt-2 sm:pt-0 border-t sm:border-t-0 border-border-subtle">
+              <div className="w-36">
+                <Input
+                  type="date"
+                  label="From Date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <span className="text-muted pt-4">to</span>
+              <div className="w-36">
+                <Input
+                  type="date"
+                  label="To Date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* List */}
       {isLoading ? (
@@ -164,12 +271,16 @@ export default function CheckedOutPage() {
           </div>
           <div>
             <h2 className="text-base font-bold text-foreground">
-              {tab === 'upcoming' ? 'No Upcoming Move-Outs' : 'No Checkout History'}
+              {tab === 'upcoming' ? 'No Upcoming Move-Outs' : 'No Checkout History Found'}
             </h2>
             <p className="text-xs text-muted mt-1">
               {tab === 'upcoming'
                 ? 'No departure notices have been recorded for this property.'
-                : 'Checked out tenant stays will be archived here.'}
+                : dateFilter === 'current_month'
+                ? 'No tenants checked out during the current month. Select "All (till today)" to see full history.'
+                : dateFilter === 'last_month'
+                ? 'No tenants checked out during the last month.'
+                : 'No checkouts found matching the selected date range.'}
             </p>
           </div>
         </Card>
@@ -229,5 +340,13 @@ export default function CheckedOutPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CheckedOutPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
+      <CheckedOutContent />
+    </Suspense>
   );
 }

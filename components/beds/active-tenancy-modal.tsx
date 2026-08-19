@@ -12,6 +12,7 @@ import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate } from '@/lib/utils/dates';
 import { RecordPaymentModal } from '@/components/payments/record-payment-modal';
+import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
 import {
   User,
   Phone,
@@ -21,6 +22,7 @@ import {
   ExternalLink,
   CalendarDays,
   XCircle,
+  UserX,
 } from 'lucide-react';
 
 interface ActiveTenancyModalProps {
@@ -42,6 +44,7 @@ export function ActiveTenancyModal({
   const [moveOutDate, setMoveOutDate] = useState<string>(formatDate(new Date()));
   const [isMoveOutOpen, setIsMoveOutOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -233,20 +236,25 @@ export function ActiveTenancyModal({
 
         {/* Notice Status Banner (if active) */}
         {hasNotice && (
-          <div className="p-3 rounded-xl bg-status-moving-out/15 border border-status-moving-out/30 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-status-moving-out" />
-              <span className="font-medium text-foreground">
-                Move-out scheduled: {formatDate(tenancy.expected_move_out_date)}
-              </span>
+          <div className="p-3.5 rounded-xl bg-status-moving-out/15 border border-status-moving-out/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-status-moving-out" />
+                <span className="font-medium text-foreground">
+                  Move-out scheduled: {formatDate(tenancy.expected_move_out_date)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelNotice}
+                className="text-xs text-status-pending hover:underline font-semibold cursor-pointer"
+              >
+                Cancel Notice
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleCancelNotice}
-              className="text-xs text-status-pending hover:underline font-semibold cursor-pointer"
-            >
-              Cancel Notice
-            </button>
+            <p className="text-[11px] text-muted">
+              Tenant is currently active on this bed. If departing earlier today, use Force Checkout below to free the bed immediately.
+            </p>
           </div>
         )}
 
@@ -257,7 +265,7 @@ export function ActiveTenancyModal({
             className="p-4 rounded-xl bg-surface-container/80 border border-border-subtle space-y-3"
           >
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-foreground">Set Move-Out / Check-Out Date</span>
+              <span className="font-semibold text-foreground">Schedule Departure Notice</span>
               <button
                 type="button"
                 onClick={() => setIsMoveOutOpen(false)}
@@ -267,12 +275,12 @@ export function ActiveTenancyModal({
               </button>
             </div>
             <p className="text-[11px] text-muted leading-relaxed">
-              If the selected date is today or past, the tenant will be immediately checked out and the bed vacated. If future, a move-out notice will be set.
+              Set the future date when this tenant plans to vacate the bed.
             </p>
 
             <Input
               type="date"
-              label="Selected Date"
+              label="Departure Date"
               value={moveOutDate}
               onChange={(e) => setMoveOutDate(e.target.value)}
               required
@@ -288,13 +296,13 @@ export function ActiveTenancyModal({
                 Cancel
               </Button>
               <Button type="submit" variant="danger" size="sm" isLoading={isLoading}>
-                Confirm Date
+                Save Notice
               </Button>
             </div>
           </form>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <Button
                 type="button"
                 variant="outline"
@@ -313,7 +321,17 @@ export function ActiveTenancyModal({
                 leftIcon={<CalendarDays className="w-3.5 h-3.5" />}
                 className="flex-1 sm:flex-initial"
               >
-                Set Notice
+                {hasNotice ? 'Change Notice' : 'Set Notice'}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => setIsCheckoutModalOpen(true)}
+                leftIcon={<UserX className="w-3.5 h-3.5" />}
+                className="flex-1 sm:flex-initial"
+              >
+                {hasNotice ? 'Force Checkout Now' : 'Check Out'}
               </Button>
             </div>
 
@@ -340,6 +358,23 @@ export function ActiveTenancyModal({
           tenancyId={tenancy.id}
           defaultAmount={pendingDues > 0 ? pendingDues : Number(tenancy.rate)}
           onSuccess={() => {
+            onSuccess();
+            onClose();
+          }}
+        />
+      )}
+
+      {/* Checkout / Force Checkout Modal */}
+      {isCheckoutModalOpen && (
+        <CheckoutTenantModal
+          isOpen={isCheckoutModalOpen}
+          onClose={() => setIsCheckoutModalOpen(false)}
+          tenancy={tenancy}
+          tenantName={tenancy.tenants.name}
+          roomInfo={`${bed?.bed_label || 'Bed'}`}
+          pendingBalance={pendingDues}
+          onSuccess={() => {
+            setIsCheckoutModalOpen(false);
             onSuccess();
             onClose();
           }}

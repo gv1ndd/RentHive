@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { AdvanceBooking } from '@/types/domain';
+import { AdvanceBooking, Tenancy, Tenant } from '@/types/domain';
 import { formatCurrency } from '@/lib/utils/currency';
 import { formatDate, getBillingCycleStartDate } from '@/lib/utils/dates';
 import { calculatePendingRent } from '@/lib/calculations/rent-calculator';
-import { CheckCircle2, AlertCircle, Calculator, CreditCard, X } from 'lucide-react';
+import { CheckoutTenantModal } from '@/components/tenants/checkout-tenant-modal';
+import { CheckCircle2, AlertCircle, Calculator, CreditCard, X, UserX } from 'lucide-react';
 
 interface ConvertBookingModalProps {
   isOpen: boolean;
@@ -27,7 +28,17 @@ interface RoomWithVacantBeds {
     bed_label: string;
     default_rate: number;
     deleted_at: string | null;
-    tenancies?: any[];
+    tenancies?: Array<{
+      id: string;
+      check_in_date: string;
+      check_out_date: string | null;
+      expected_move_out_date: string | null;
+      notice_given_date: string | null;
+      rate: number;
+      due_day: number;
+      deleted_at: string | null;
+      tenants?: Tenant | null;
+    }>;
   }>;
 }
 
@@ -51,7 +62,86 @@ export function ConvertBookingModal({
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
 
+  // Conflict resolution / Force checkout modal state
+  const [forceCheckoutTenancy, setForceCheckoutTenancy] = useState<any | null>(null);
+  const [forceCheckoutPendingDues, setForceCheckoutPendingDues] = useState<number>(0);
+
   const supabase = createClient();
+
+  const fetchRoomsAndBeds = useCallback(async () => {
+    if (!booking) return;
+
+    const { data } = await supabase
+      .from('rooms')
+      .select(`
+        id,
+        room_number,
+        beds (
+          id,
+          bed_label,
+          default_rate,
+          deleted_at,
+          tenancies (
+            id,
+            check_in_date,
+            check_out_date,
+            expected_move_out_date,
+            notice_given_date,
+            rate,
+            due_day,
+            deleted_at,
+            tenants (
+              id,
+              name,
+              phone
+            )
+          )
+        )
+      `)
+      .eq('building_id', booking.building_id)
+      .is('deleted_at', null)
+      .order('room_number', { ascending: true });
+
+    if (data && data.length > 0) {
+      const roomList = data as unknown as RoomWithVacantBeds[];
+      setRooms(roomList);
+
+      // Select initial room
+      const initialRoom =
+        (selectedRoomId && roomList.find((r) => r.id === selectedRoomId)) ||
+        (booking.room_id && roomList.find((r) => r.id === booking.room_id)) ||
+        roomList[0];
+
+      setSelectedRoomId(initialRoom.id);
+
+      // Beds in this room
+      const roomBeds = (initialRoom.beds || []).filter((b) => !b.deleted_at);
+
+      // Filter available beds for this room (vacant beds, or the reserved bed)
+      const vacantBeds = roomBeds.filter((b) => {
+        const hasActive = (b.tenancies || []).some(
+          (t) => !t.check_out_date && !t.deleted_at
+        );
+        return !hasActive || b.id === booking.bed_id;
+      });
+
+      // Select initial bed
+      const initialBed =
+        (selectedBedId && roomBeds.find((b) => b.id === selectedBedId)) ||
+        (booking.bed_id && roomBeds.find((b) => b.id === booking.bed_id)) ||
+        vacantBeds[0] ||
+        roomBeds[0];
+
+      if (initialBed) {
+        setSelectedBedId(initialBed.id);
+        if (!booking.total_amount && initialBed.default_rate) {
+          setRate(String(initialBed.default_rate));
+        }
+      } else {
+        setSelectedBedId('');
+      }
+    }
+  }, [booking, selectedRoomId, selectedBedId, supabase]);
 
   useEffect(() => {
     if (booking && isOpen) {
@@ -62,78 +152,26 @@ export function ConvertBookingModal({
       setIsRecordingPayment(false);
       setPaymentAmount('');
       setPaymentMethod('Cash');
+      setForceCheckoutTenancy(null);
       setError(null);
-
-      const fetchRoomsAndBeds = async () => {
-        const { data } = await supabase
-          .from('rooms')
-          .select(`
-            id,
-            room_number,
-            beds (
-              id,
-              bed_label,
-              default_rate,
-              deleted_at,
-              tenancies (
-                id,
-                check_out_date,
-                deleted_at
-              )
-            )
-          `)
-          .eq('building_id', booking.building_id)
-          .is('deleted_at', null)
-          .order('room_number', { ascending: true });
-
-        if (data && data.length > 0) {
-          const roomList = data as unknown as RoomWithVacantBeds[];
-          setRooms(roomList);
-
-          // Select initial room
-          const initialRoom = (booking.room_id && roomList.find((r) => r.id === booking.room_id)) || roomList[0];
-          setSelectedRoomId(initialRoom.id);
-
-          // Filter available beds for this room
-          const vacantBeds = (initialRoom.beds || []).filter((b) => {
-            if (b.deleted_at) return false;
-            const hasActive = (b.tenancies || []).some(
-              (t) => !t.check_out_date && !t.deleted_at
-            );
-            return !hasActive || b.id === booking.bed_id;
-          });
-
-          // Select initial bed
-          const initialBed = (booking.bed_id && vacantBeds.find((b) => b.id === booking.bed_id)) || vacantBeds[0];
-          if (initialBed) {
-            setSelectedBedId(initialBed.id);
-            if (!booking.total_amount && initialBed.default_rate) {
-              setRate(String(initialBed.default_rate));
-            }
-          } else {
-            setSelectedBedId('');
-          }
-        }
-      };
 
       fetchRoomsAndBeds();
     }
-  }, [booking, isOpen, supabase]);
+  }, [booking, isOpen, fetchRoomsAndBeds]);
 
   const activeRoom = rooms.find((r) => r.id === selectedRoomId);
-  const availableBeds = (activeRoom?.beds || []).filter((b) => {
-    if (b.deleted_at) return false;
-    const hasActiveTenancy = (b.tenancies || []).some(
-      (t) => !t.check_out_date && !t.deleted_at
-    );
-    return !hasActiveTenancy || b.id === booking?.bed_id;
-  });
+  const activeBeds = (activeRoom?.beds || []).filter((b) => !b.deleted_at);
+
+  const selectedBed = activeBeds.find((b) => b.id === selectedBedId);
+  const activeOccupantTenancy = (selectedBed?.tenancies || []).find(
+    (t) => !t.check_out_date && !t.deleted_at
+  );
 
   const handleRoomChange = (newRoomId: string) => {
     setSelectedRoomId(newRoomId);
     const room = rooms.find((r) => r.id === newRoomId);
-    const vacantBeds = (room?.beds || []).filter((b) => {
-      if (b.deleted_at) return false;
+    const roomBeds = (room?.beds || []).filter((b) => !b.deleted_at);
+    const vacantBeds = roomBeds.filter((b) => {
       const hasActive = (b.tenancies || []).some(
         (t) => !t.check_out_date && !t.deleted_at
       );
@@ -145,6 +183,8 @@ export function ConvertBookingModal({
       if (!booking?.total_amount && vacantBeds[0].default_rate) {
         setRate(String(vacantBeds[0].default_rate));
       }
+    } else if (roomBeds.length > 0) {
+      setSelectedBedId(roomBeds[0].id);
     } else {
       setSelectedBedId('');
     }
@@ -156,6 +196,32 @@ export function ConvertBookingModal({
     const bed = room?.beds.find((b) => b.id === newBedId);
     if (bed && !booking?.total_amount && bed.default_rate) {
       setRate(String(bed.default_rate));
+    }
+  };
+
+  const handleInitiateForceCheckout = async (tenancy: any) => {
+    // Calculate pending dues for outgoing tenant
+    try {
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('tenancy_id', tenancy.id)
+        .is('deleted_at', null);
+
+      const result = calculatePendingRent({
+        rate: Number(tenancy.rate),
+        checkInDate: tenancy.check_in_date,
+        checkOutDate: tenancy.check_out_date,
+        dueDay: tenancy.due_day || 1,
+        payments: (paymentsData || []) as any[],
+        asOfDate: new Date(),
+      });
+
+      setForceCheckoutPendingDues(result.pendingBalance);
+      setForceCheckoutTenancy(tenancy);
+    } catch {
+      setForceCheckoutPendingDues(0);
+      setForceCheckoutTenancy(tenancy);
     }
   };
 
@@ -233,6 +299,15 @@ export function ConvertBookingModal({
       return;
     }
 
+    if (activeOccupantTenancy) {
+      setError(
+        `This bed is currently occupied by ${
+          activeOccupantTenancy.tenants?.name || 'an active tenant'
+        }. Please click "Force Checkout Now" to check out the current occupant before checking in the new tenant.`
+      );
+      return;
+    }
+
     if (isRecordingPayment && (!paymentAmount || parseFloat(paymentAmount) <= 0)) {
       setError('Please enter a valid payment amount, or cancel recording payment.');
       return;
@@ -254,7 +329,9 @@ export function ConvertBookingModal({
 
       if (rpcError) {
         if (rpcError.message.includes('BED_OCCUPIED')) {
-          throw new Error('This bed is already occupied by an active tenancy.');
+          throw new Error(
+            'This bed is already occupied by an active tenancy. Please check out the current occupant first.'
+          );
         }
         if (rpcError.message.includes('ALREADY_CONVERTED')) {
           throw new Error('This booking has already been converted.');
@@ -343,17 +420,62 @@ export function ConvertBookingModal({
             value={selectedBedId}
             onChange={(e) => handleBedChange(e.target.value)}
             options={
-              availableBeds.length > 0
-                ? availableBeds.map((b) => ({
-                    value: b.id,
-                    label: `${b.bed_label} (₹${b.default_rate}/mo)`,
-                  }))
-                : [{ value: '', label: 'No beds available in this room' }]
+              activeBeds.length > 0
+                ? activeBeds.map((b) => {
+                    const activeTenancy = (b.tenancies || []).find(
+                      (t) => !t.check_out_date && !t.deleted_at
+                    );
+                    const isOccupied = Boolean(activeTenancy);
+                    const occupantName = activeTenancy?.tenants?.name;
+                    return {
+                      value: b.id,
+                      label: isOccupied
+                        ? `${b.bed_label} (Occupied by ${occupantName || 'Tenant'})`
+                        : `${b.bed_label} (₹${b.default_rate}/mo - Vacant)`,
+                    };
+                  })
+                : [{ value: '', label: 'No beds in this room' }]
             }
             required
-            disabled={!selectedRoomId || availableBeds.length === 0}
+            disabled={!selectedRoomId || activeBeds.length === 0}
           />
         </div>
+
+        {/* Active Occupant Bed Conflict Banner */}
+        {activeOccupantTenancy && (
+          <div className="p-3.5 rounded-xl bg-status-moving-out/15 border border-status-moving-out/30 space-y-2.5 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-status-moving-out font-bold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Bed Conflict: Current Occupant Still Active</span>
+                </div>
+                <p className="text-muted leading-relaxed">
+                  <strong className="text-foreground">
+                    {activeOccupantTenancy.tenants?.name || 'Current occupant'}
+                  </strong>{' '}
+                  is currently occupying this bed
+                  {activeOccupantTenancy.expected_move_out_date
+                    ? ` (scheduled move-out: ${formatDate(
+                        activeOccupantTenancy.expected_move_out_date
+                      )})`
+                    : ''}
+                  . You must check out the current occupant before checking in {booking.tenant_name}.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() => handleInitiateForceCheckout(activeOccupantTenancy)}
+                leftIcon={<UserX className="w-3.5 h-3.5" />}
+                className="shrink-0 w-full sm:w-auto"
+              >
+                Force Checkout Now
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Rate, Due Day, Check-In Date */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -477,11 +599,33 @@ export function ConvertBookingModal({
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" size="sm" isLoading={isLoading}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            isLoading={isLoading}
+            disabled={Boolean(activeOccupantTenancy)}
+          >
             Convert & Check In
           </Button>
         </div>
       </form>
+
+      {/* Force Checkout Modal */}
+      {forceCheckoutTenancy && (
+        <CheckoutTenantModal
+          isOpen={Boolean(forceCheckoutTenancy)}
+          onClose={() => setForceCheckoutTenancy(null)}
+          tenancy={forceCheckoutTenancy}
+          tenantName={forceCheckoutTenancy.tenants?.name || 'Current Occupant'}
+          roomInfo={`${selectedBed?.bed_label || 'Bed'}`}
+          pendingBalance={forceCheckoutPendingDues}
+          onSuccess={async () => {
+            setForceCheckoutTenancy(null);
+            await fetchRoomsAndBeds();
+          }}
+        />
+      )}
     </Modal>
   );
 }
