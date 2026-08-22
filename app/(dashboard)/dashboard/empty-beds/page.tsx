@@ -102,6 +102,19 @@ export default function EmptyBedsPage() {
         }
       }
 
+      // Natural numeric sort: Floor -> Room Number -> Bed Label
+      list.sort((a, b) => {
+        if (a.room.floor_number !== b.room.floor_number) {
+          return a.room.floor_number - b.room.floor_number;
+        }
+        const roomA = parseRoomDisplay(a.room.room_number).cleanRoomNumber;
+        const roomB = parseRoomDisplay(b.room.room_number).cleanRoomNumber;
+        const roomCompare = roomA.localeCompare(roomB, undefined, { numeric: true, sensitivity: 'base' });
+        if (roomCompare !== 0) return roomCompare;
+
+        return a.bed_label.localeCompare(b.bed_label, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
       setVacantBeds(list);
     } catch (e) {
       console.error('Error loading vacant beds:', e);

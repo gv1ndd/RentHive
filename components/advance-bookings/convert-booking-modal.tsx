@@ -69,96 +69,109 @@ export function ConvertBookingModal({
 
   const supabase = createClient();
 
-  const fetchRoomsAndBeds = useCallback(async () => {
-    if (!booking) return;
+  const loadRooms = useCallback(
+    async (isInitial = false) => {
+      if (!booking) return;
 
-    const { data } = await supabase
-      .from('rooms')
-      .select(`
-        id,
-        room_number,
-        beds (
+      const { data } = await supabase
+        .from('rooms')
+        .select(`
           id,
-          bed_label,
-          default_rate,
-          deleted_at,
-          tenancies (
+          room_number,
+          beds (
             id,
-            check_in_date,
-            check_out_date,
-            expected_move_out_date,
-            notice_given_date,
-            rate,
-            due_day,
+            bed_label,
+            default_rate,
             deleted_at,
-            tenants (
+            tenancies (
               id,
-              name,
-              phone
+              check_in_date,
+              check_out_date,
+              expected_move_out_date,
+              notice_given_date,
+              rate,
+              due_day,
+              deleted_at,
+              tenants (
+                id,
+                name,
+                phone
+              )
             )
           )
-        )
-      `)
-      .eq('building_id', booking.building_id)
-      .is('deleted_at', null)
-      .order('room_number', { ascending: true });
+        `)
+        .eq('building_id', booking.building_id)
+        .is('deleted_at', null)
+        .order('room_number', { ascending: true });
 
-    if (data && data.length > 0) {
-      const roomList = data as unknown as RoomWithVacantBeds[];
-      setRooms(roomList);
+      if (data && data.length > 0) {
+        const roomList = data as unknown as RoomWithVacantBeds[];
+        // Natural numeric sort rooms
+        roomList.sort((a, b) => {
+          const rA = parseRoomDisplay(a.room_number).cleanRoomNumber;
+          const rB = parseRoomDisplay(b.room_number).cleanRoomNumber;
+          return rA.localeCompare(rB, undefined, { numeric: true, sensitivity: 'base' });
+        });
 
-      // Select initial room
-      const initialRoom =
-        (selectedRoomId && roomList.find((r) => r.id === selectedRoomId)) ||
-        (booking.room_id && roomList.find((r) => r.id === booking.room_id)) ||
-        roomList[0];
-
-      setSelectedRoomId(initialRoom.id);
-
-      // Beds in this room
-      const roomBeds = (initialRoom.beds || []).filter((b) => !b.deleted_at);
-
-      // Filter available beds for this room (vacant beds, or the reserved bed)
-      const vacantBeds = roomBeds.filter((b) => {
-        const hasActive = (b.tenancies || []).some(
-          (t) => !t.check_out_date && !t.deleted_at
-        );
-        return !hasActive || b.id === booking.bed_id;
-      });
-
-      // Select initial bed
-      const initialBed =
-        (selectedBedId && roomBeds.find((b) => b.id === selectedBedId)) ||
-        (booking.bed_id && roomBeds.find((b) => b.id === booking.bed_id)) ||
-        vacantBeds[0] ||
-        roomBeds[0];
-
-      if (initialBed) {
-        setSelectedBedId(initialBed.id);
-        if (!booking.total_amount && initialBed.default_rate) {
-          setRate(String(initialBed.default_rate));
+        // Natural sort beds inside each room
+        for (const r of roomList) {
+          (r.beds || []).sort((a, b) =>
+            a.bed_label.localeCompare(b.bed_label, undefined, { numeric: true, sensitivity: 'base' })
+          );
         }
-      } else {
-        setSelectedBedId('');
+
+        setRooms(roomList);
+
+        if (isInitial) {
+          // Determine initial room
+          const initialRoom =
+            (booking.room_id && roomList.find((r) => r.id === booking.room_id)) ||
+            roomList[0];
+
+          if (initialRoom) {
+            setSelectedRoomId(initialRoom.id);
+
+            const roomBeds = (initialRoom.beds || []).filter((b) => !b.deleted_at);
+            const vacantBeds = roomBeds.filter((b) => {
+              const hasActive = (b.tenancies || []).some(
+                (t) => !t.check_out_date && !t.deleted_at
+              );
+              return !hasActive || b.id === booking.bed_id;
+            });
+
+            const initialBed =
+              (booking.bed_id && roomBeds.find((b) => b.id === booking.bed_id)) ||
+              vacantBeds[0] ||
+              roomBeds[0];
+
+            if (initialBed) {
+              setSelectedBedId(initialBed.id);
+              if (!booking.total_amount && initialBed.default_rate) {
+                setRate(String(initialBed.default_rate));
+              }
+            } else {
+              setSelectedBedId('');
+            }
+          }
+        }
       }
-    }
-  }, [booking, selectedRoomId, selectedBedId, supabase]);
+    },
+    [booking?.building_id, booking?.room_id, booking?.bed_id, booking?.total_amount, supabase]
+  );
 
   useEffect(() => {
-    if (booking && isOpen) {
-      setRate(String(booking.total_amount || 6000));
-      setCheckInDate(booking.expected_move_in_date || formatDate(new Date()));
-      setSelectedRoomId(booking.room_id || '');
-      setSelectedBedId(booking.bed_id || '');
-      setIsRecordingPayment(false);
-      setPaymentAmount('');
-      setPaymentMethod('Cash');
-      setForceCheckoutTenancy(null);
-      setError(null);
+    if (!booking || !isOpen) return;
 
-      fetchRoomsAndBeds();
-    }
-  }, [booking, isOpen, fetchRoomsAndBeds]);
+    setRate(String(booking.total_amount || 6000));
+    setCheckInDate(booking.expected_move_in_date || formatDate(new Date()));
+    setIsRecordingPayment(false);
+    setPaymentAmount('');
+    setPaymentMethod('Cash');
+    setForceCheckoutTenancy(null);
+    setError(null);
+
+    loadRooms(true);
+  }, [booking?.id, isOpen, loadRooms]);
 
   const activeRoom = rooms.find((r) => r.id === selectedRoomId);
   const activeBeds = (activeRoom?.beds || []).filter((b) => !b.deleted_at);
@@ -186,6 +199,9 @@ export function ConvertBookingModal({
       }
     } else if (roomBeds.length > 0) {
       setSelectedBedId(roomBeds[0].id);
+      if (!booking?.total_amount && roomBeds[0].default_rate) {
+        setRate(String(roomBeds[0].default_rate));
+      }
     } else {
       setSelectedBedId('');
     }
@@ -626,7 +642,7 @@ export function ConvertBookingModal({
           pendingBalance={forceCheckoutPendingDues}
           onSuccess={async () => {
             setForceCheckoutTenancy(null);
-            await fetchRoomsAndBeds();
+            await loadRooms(false);
           }}
         />
       )}
