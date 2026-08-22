@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
-import { formatRoomNumber } from '@/lib/utils/room-helper';
+import { formatRoomNumber, parseRoomDisplay } from '@/lib/utils/room-helper';
 
 interface AddRoomModalProps {
   isOpen: boolean;
@@ -37,9 +37,30 @@ export function AddRoomModal({ isOpen, onClose, buildingId, onSuccess }: AddRoom
     setError(null);
 
     try {
-      // 1. Insert Room (with balcony tag if selected)
+      const cleanInput = parseRoomDisplay(roomNumber).cleanRoomNumber.toLowerCase();
       const fullRoomNumber = formatRoomNumber(roomNumber, isBalcony);
 
+      // Check for existing room with same number in this property
+      const { data: existingRooms, error: checkError } = await supabase
+        .from('rooms')
+        .select('id, room_number')
+        .eq('building_id', buildingId)
+        .is('deleted_at', null);
+
+      if (checkError) throw checkError;
+
+      const duplicate = (existingRooms || []).find((r) => {
+        const existingClean = parseRoomDisplay(r.room_number).cleanRoomNumber.toLowerCase();
+        return existingClean === cleanInput;
+      });
+
+      if (duplicate) {
+        setError(`Room "${duplicate.room_number}" already exists in this property. Please choose a different room number.`);
+        setIsLoading(false);
+        return;
+      }
+
+      // 1. Insert Room (with balcony tag if selected)
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert({

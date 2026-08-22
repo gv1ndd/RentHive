@@ -45,7 +45,29 @@ export function EditRoomModal({ isOpen, onClose, room, onSuccess }: EditRoomModa
     setError(null);
 
     try {
+      const cleanInput = parseRoomDisplay(roomNumber).cleanRoomNumber.toLowerCase();
       const fullRoomNumber = formatRoomNumber(roomNumber, isBalcony);
+
+      // Check for duplicate room in this property (excluding this room)
+      const { data: existingRooms, error: checkError } = await supabase
+        .from('rooms')
+        .select('id, room_number')
+        .eq('building_id', room.building_id)
+        .neq('id', room.id)
+        .is('deleted_at', null);
+
+      if (checkError) throw checkError;
+
+      const duplicate = (existingRooms || []).find((r) => {
+        const existingClean = parseRoomDisplay(r.room_number).cleanRoomNumber.toLowerCase();
+        return existingClean === cleanInput;
+      });
+
+      if (duplicate) {
+        setError(`Room "${duplicate.room_number}" already exists in this property. Please choose a different room number.`);
+        setIsLoading(false);
+        return;
+      }
 
       const { error: updateError } = await supabase
         .from('rooms')
